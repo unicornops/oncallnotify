@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.2.1 - 2025-12-12
+#### Bug Fixes
+- Use the new icon for the app in finder - (c28336f) - Rob Lazzurs
+
+- - -
+
 ## v0.2.0 - 2025-12-12
 #### Features
 - Adding app icon - (f9a10cd) - Rob Lazzurs
