@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.3.0 - 2025-12-12
+#### Features
+- Enable Info.plist generation and remove icon keys - (c316c71) - Rob Lazzurs
+
+- - -
+
 ## v0.2.1 - 2025-12-12
 #### Bug Fixes
 - Use the new icon for the app in finder - (c28336f) - Rob Lazzurs
