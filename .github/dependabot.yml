@@ -1,0 +1,40 @@
+# Dependabot configuration
+# - Keeps GitHub Actions and Swift (SwiftPM / Xcode) dependencies up-to-date
+# - Weekly checks with a modest open PR limit and automatic rebases
+version: 2
+updates:
+  - package-ecosystem: "swift"
+    directory: "/" # root of the repository (adjust if using a subdirectory for Package.swift)
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    rebase-strategy: "auto"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "dependabot"
+      - "automation"
+    # Set to true if you only want security fixes; leaving false to receive regular updates as well
+    security-updates-only: false
+
+  - package-ecosystem: "github-actions"
+    directory: "/" # scan workflow files in .github/workflows
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    rebase-strategy: "auto"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "dependabot"
+      - "automation"

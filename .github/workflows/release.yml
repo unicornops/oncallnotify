@@ -1,0 +1,461 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g., 1.0.0)"
+        required: true
+        type: string
+
+jobs:
+  build-and-release:
+    name: Build and Create Release
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
+
+      - name: Show build environment
+        run: |
+          echo "Xcode version:"
+          xcodebuild -version
+          echo ""
+          echo "Swift version:"
+          swift --version
+          echo ""
+          echo "macOS version:"
+          sw_vers
+
+      - name: Set version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Release version: $VERSION"
+
+      - name: Clean build directory
+        run: rm -rf build/
+
+      - name: Setup code signing
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          # Use login keychain instead of temporary for xcodebuild compatibility
+          KEYCHAIN_PATH="$HOME/Library/Keychains/login.keychain-db"
+
+          echo "Using login keychain for certificate import..."
+          echo "Keychain path: $KEYCHAIN_PATH"
+
+          # Import certificate
+          echo "Importing certificate..."
+          CERTIFICATE_PATH=$RUNNER_TEMP/certificate.p12
+          echo "$CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
+
+          # Verify certificate file was created
+          if [ ! -f "$CERTIFICATE_PATH" ]; then
+            echo "Error: Certificate file was not created"
+            exit 1
+          fi
+
+          echo "Certificate file size: $(ls -lh "$CERTIFICATE_PATH" | awk '{print $5}')"
+
+          # Verify it's a valid PKCS12 file
+          if ! file "$CERTIFICATE_PATH" | grep -q "data"; then
+            echo "Error: Certificate file doesn't appear to be valid"
+            file "$CERTIFICATE_PATH"
+            exit 1
+          fi
+
+          # Import certificate to login keychain
+          echo "Importing certificate to login keychain..."
+          security import "$CERTIFICATE_PATH" \
+            -P "$CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$KEYCHAIN_PATH" 2>&1 || {
+              echo "Error: Certificate import failed"
+              echo "This usually means:"
+              echo "1. APPLE_CERTIFICATE_PASSWORD is incorrect"
+              echo "2. APPLE_CERTIFICATE_BASE64 is not a valid .p12 file"
+              echo "3. The certificate doesn't contain a private key"
+              exit 1
+            }
+
+          # Set partition list to allow codesigning
+          # Get the login keychain password - for GitHub Actions runners, try empty or unlock without password
+          echo "Configuring keychain access for codesigning..."
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" "$KEYCHAIN_PATH" 2>/dev/null || \
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s "$KEYCHAIN_PATH" 2>/dev/null || \
+          echo "Note: Could not set partition list, but certificate may still work"
+
+          # Verify certificate and get exact identity
+          echo "Installed certificates:"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+          # Count how many identities we have
+          IDENTITY_COUNT=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep -c "Developer ID Application" || echo "0")
+          echo "Found $IDENTITY_COUNT Developer ID Application certificate(s)"
+
+          if [ "$IDENTITY_COUNT" -eq "0" ]; then
+            echo "Error: No Developer ID Application certificate found after import"
+            echo "The certificate import succeeded but no codesigning identity is available"
+            echo "Please verify your certificate export includes the private key"
+            exit 1
+          fi
+
+          # Extract the exact identity for use in xcodebuild
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep "Developer ID Application" | head -1 | sed -n 's/.*"\(.*\)"/\1/p')
+          echo "Found identity: $IDENTITY"
+
+          if [ -z "$IDENTITY" ]; then
+            echo "Error: Could not extract identity name"
+            exit 1
+          fi
+
+          # Store the exact identity name for the build step
+          echo "SIGNING_IDENTITY=$IDENTITY" >> $GITHUB_ENV
+
+          echo "✅ Code signing certificate installed"
+
+      - name: Build and sign release
+        env:
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          echo "Building with Developer ID Application certificate for team: $TEAM_ID"
+
+          # Verify certificate is accessible
+          echo "Verifying certificate in login keychain:"
+          security find-identity -v -p codesigning
+
+          echo "Using signing identity: $SIGNING_IDENTITY"
+
+          # Build with signing - certificate is in login keychain so should work
+          xcodebuild \
+            -project OnCallNotify.xcodeproj \
+            -scheme OnCallNotify \
+            -configuration Release \
+            -derivedDataPath build/DerivedData \
+            SYMROOT=build \
+            CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            clean build
+
+      - name: Find built app
+        id: find-app
+        run: |
+          APP_PATH=$(find build -name "OnCallNotify.app" -type d | head -n 1)
+          echo "app_path=$APP_PATH" >> $GITHUB_OUTPUT
+          echo "Found app at: $APP_PATH"
+
+      - name: Verify app bundle
+        run: |
+          APP_PATH="${{ steps.find-app.outputs.app_path }}"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "Error: App bundle not found"
+            exit 1
+          fi
+
+          echo "App bundle structure:"
+          ls -lhR "$APP_PATH"
+
+          # Verify required components
+          if [ ! -f "$APP_PATH/Contents/MacOS/OnCallNotify" ]; then
+            echo "Error: Executable not found"
+            exit 1
+          fi
+
+          if [ ! -f "$APP_PATH/Contents/Info.plist" ]; then
+            echo "Error: Info.plist not found"
+            exit 1
+          fi
+
+          echo "✓ App bundle verification successful"
+
+      - name: Verify code signature
+        run: |
+          APP_PATH="${{ steps.find-app.outputs.app_path }}"
+
+          echo "Verifying code signature..."
+          codesign -vvv --deep --strict "$APP_PATH"
+
+          echo ""
+          echo "Code signature details:"
+          codesign -dvvv "$APP_PATH"
+
+          echo ""
+          echo "✅ Code signature verification successful"
+
+      - name: Notarize app
+        env:
+          APPLE_ID: ${{ secrets.APPLE_DEVELOPER_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          APP_PATH="${{ steps.find-app.outputs.app_path }}"
+
+          echo "Creating ZIP for notarization..."
+          ditto -c -k --keepParent "$APP_PATH" NotarizeApp.zip
+
+          echo "Submitting to Apple for notarization..."
+          echo "This may take several minutes..."
+          xcrun notarytool submit NotarizeApp.zip \
+            --apple-id "$APPLE_ID" \
+            --team-id "$TEAM_ID" \
+            --password "$APPLE_PASSWORD" \
+            --wait \
+            --timeout 30m
+
+          echo ""
+          echo "Stapling notarization ticket..."
+          xcrun stapler staple "$APP_PATH"
+
+          echo ""
+          echo "Verifying notarization..."
+          xcrun stapler validate "$APP_PATH"
+          spctl -a -vv "$APP_PATH"
+
+          echo ""
+          echo "✅ App successfully notarized and stapled"
+
+          # Clean up notarization ZIP
+          rm NotarizeApp.zip
+
+      - name: Get app info
+        id: app-info
+        run: |
+          APP_PATH="${{ steps.find-app.outputs.app_path }}"
+          BUNDLE_ID=$(defaults read "$APP_PATH/Contents/Info.plist" CFBundleIdentifier)
+          BUNDLE_VERSION=$(defaults read "$APP_PATH/Contents/Info.plist" CFBundleShortVersionString)
+          BUNDLE_BUILD=$(defaults read "$APP_PATH/Contents/Info.plist" CFBundleVersion)
+
+          echo "bundle_id=$BUNDLE_ID" >> $GITHUB_OUTPUT
+          echo "bundle_version=$BUNDLE_VERSION" >> $GITHUB_OUTPUT
+          echo "bundle_build=$BUNDLE_BUILD" >> $GITHUB_OUTPUT
+
+          echo "Bundle ID: $BUNDLE_ID"
+          echo "Version: $BUNDLE_VERSION"
+          echo "Build: $BUNDLE_BUILD"
+
+      - name: Create DMG
+        run: |
+          APP_PATH="${{ steps.find-app.outputs.app_path }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          DMG_NAME="OnCallNotify-${VERSION}.dmg"
+          TEMP_DMG="temp.dmg"
+          VOLUME_NAME="OnCall Notify ${VERSION}"
+
+          # Create a temporary directory for DMG contents
+          mkdir -p dmg-staging
+          cp -r "$APP_PATH" dmg-staging/
+
+          # Create a symbolic link to Applications folder
+          ln -s /Applications dmg-staging/Applications
+
+          # Create the DMG
+          hdiutil create -volname "$VOLUME_NAME" \
+            -srcfolder dmg-staging \
+            -ov -format UDZO \
+            "$DMG_NAME"
+
+          # Verify DMG was created
+          if [ -f "$DMG_NAME" ]; then
+            echo "✓ DMG created successfully: $DMG_NAME"
+            ls -lh "$DMG_NAME"
+          else
+            echo "✗ DMG creation failed"
+            exit 1
+          fi
+
+          # Save DMG name for later steps
+          echo "dmg_name=$DMG_NAME" >> $GITHUB_OUTPUT
+        id: create-dmg
+
+      - name: Create ZIP archive
+        run: |
+          APP_PATH="${{ steps.find-app.outputs.app_path }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          ZIP_NAME="OnCallNotify-${VERSION}.zip"
+
+          # Create ZIP archive
+          ditto -c -k --keepParent "$APP_PATH" "$ZIP_NAME"
+
+          # Verify ZIP was created
+          if [ -f "$ZIP_NAME" ]; then
+            echo "✓ ZIP created successfully: $ZIP_NAME"
+            ls -lh "$ZIP_NAME"
+          else
+            echo "✗ ZIP creation failed"
+            exit 1
+          fi
+
+          echo "zip_name=$ZIP_NAME" >> $GITHUB_OUTPUT
+        id: create-zip
+
+      - name: Calculate checksums
+        run: |
+          DMG_NAME="${{ steps.create-dmg.outputs.dmg_name }}"
+          ZIP_NAME="${{ steps.create-zip.outputs.zip_name }}"
+
+          echo "Calculating checksums..."
+          shasum -a 256 "$DMG_NAME" > checksums.txt
+          shasum -a 256 "$ZIP_NAME" >> checksums.txt
+
+          echo "Checksums:"
+          cat checksums.txt
+
+      - name: Cleanup certificate
+        if: always()
+        run: |
+          echo "Cleaning up imported certificate from login keychain..."
+          # Find and delete the imported certificate
+          security find-identity -v -p codesigning | grep "Developer ID Application: Unicorn Operations" | while read line; do
+            HASH=$(echo "$line" | awk '{print $2}')
+            if [ ! -z "$HASH" ]; then
+              echo "Removing certificate: $HASH"
+              security delete-identity -Z "$HASH" 2>/dev/null || true
+            fi
+          done
+          echo "Certificate cleanup complete"
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OnCallNotify-DMG-${{ steps.version.outputs.version }}
+          path: ${{ steps.create-dmg.outputs.dmg_name }}
+          retention-days: 90
+
+      - name: Upload ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OnCallNotify-ZIP-${{ steps.version.outputs.version }}
+          path: ${{ steps.create-zip.outputs.zip_name }}
+          retention-days: 90
+
+      - name: Create Release Notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          BUNDLE_VERSION="${{ steps.app-info.outputs.bundle_version }}"
+          BUNDLE_BUILD="${{ steps.app-info.outputs.bundle_build }}"
+
+          cat > release-notes.md << EOF
+          # OnCall Notify v${VERSION}
+
+          ## 📦 Installation
+
+          ### Option 1: DMG Installer (Recommended)
+          1. Download \`OnCallNotify-${VERSION}.dmg\`
+          2. Open the DMG file
+          3. Drag OnCall Notify to your Applications folder
+          4. Launch from Applications
+
+          ### Option 2: ZIP Archive
+          1. Download \`OnCallNotify-${VERSION}.zip\`
+          2. Extract the ZIP file
+          3. Move OnCallNotify.app to your Applications folder
+          4. Launch from Applications
+
+          ## ℹ️ Build Information
+
+          - **Version**: ${BUNDLE_VERSION}
+          - **Build**: ${BUNDLE_BUILD}
+          - **macOS**: 13.0+ (Ventura or later)
+          - **Architecture**: Universal (Apple Silicon & Intel)
+
+          ## 🔐 Security
+
+          This release is **fully signed and notarized** by Apple:
+          - ✅ Code signed with Developer ID
+          - ✅ Notarized by Apple
+          - ✅ No security warnings on macOS
+
+          Simply download, install, and run. No special steps required!
+
+          ## 📝 Checksums (SHA-256)
+
+          \`\`\`
+          $(cat checksums.txt)
+          \`\`\`
+
+          ## 🚀 Quick Start
+
+          1. Launch OnCall Notify
+          2. Click the menu bar icon
+          3. Click the gear icon to open Settings
+          4. Enter your PagerDuty API token
+          5. Click "Test Connection" to verify
+
+          For more details, see the [Quick Start Guide](https://github.com/${{ github.repository }}/blob/main/QUICKSTART.md).
+
+          ## 📚 Documentation
+
+          - [README](https://github.com/${{ github.repository }}/blob/main/README.md)
+          - [Features](https://github.com/${{ github.repository }}/blob/main/FEATURES.md)
+          - [Troubleshooting](https://github.com/${{ github.repository }}/blob/main/TROUBLESHOOTING.md)
+
+          ---
+
+          **Full Changelog**: https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md
+          EOF
+
+          cat release-notes.md
+
+      - name: Create GitHub Release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: release-notes.md
+          files: |
+            ${{ steps.create-dmg.outputs.dmg_name }}
+            ${{ steps.create-zip.outputs.zip_name }}
+            checksums.txt
+          draft: true
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release summary
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          echo "## Release Build Summary 🎉" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: v${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bundle Version**: ${{ steps.app-info.outputs.bundle_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bundle Build**: ${{ steps.app-info.outputs.bundle_build }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Xcode**: $(xcodebuild -version | head -n 1)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Swift**: $(swift --version | head -n 1)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔐 Security" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Code signed with Developer ID" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Notarized by Apple" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Ready for public distribution" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Artifacts Created" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ steps.create-dmg.outputs.dmg_name }}\` ($(ls -lh ${{ steps.create-dmg.outputs.dmg_name }} | awk '{print $5}'GB))" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ steps.create-zip.outputs.zip_name }}\` ($(ls -lh ${{ steps.create-zip.outputs.zip_name }} | awk '{print $5}'GB))" >> $GITHUB_STEP_SUMMARY
+          echo "- \`checksums.txt\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔐 Checksums" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          cat checksums.txt >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
