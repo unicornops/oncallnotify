@@ -16,6 +16,7 @@ OnCall Notify is your unified on-call status monitor for macOS. Currently suppor
 
 - 🔔 **Real-time Alert Monitoring**: Display current incidents directly in your menu bar
 - 📊 **Alert Categorization**: Separate counts for acknowledged and unacknowledged alerts
+- 🔔 **Native Notifications**: Get notified instantly for new alerts, status changes, and on-call schedule changes
 - 👤 **On-Call Status**: Visual indicator showing if you're currently on-call
 - 📅 **Next Shift Information**: See when your next on-call shift starts
 - 🔒 **Secure Storage**: API tokens stored securely in macOS Keychain
@@ -150,6 +151,21 @@ Click the menu bar icon to see detailed information:
 - **Refresh Data**: Click the refresh icon in the popover
 - **Open Settings**: Click the gear icon
 - **Quit App**: Click the X icon in the popover
+
+### Notifications
+
+OnCall Notify sends native macOS notifications to keep you informed about important changes:
+
+- **New Alerts**: Get notified immediately when a new incident is assigned to you
+- **Status Changes**: Receive notifications when incidents are acknowledged or resolved
+- **On-Call Changes**: Be alerted when your on-call status changes (shift starts or ends)
+
+**First Launch**: The app will request notification permissions when you first run it. You can also manage notification settings in System Settings → Notifications → OnCall Notify.
+
+**Notification Content**:
+- New alerts include the incident title and urgency level
+- Status change notifications show what changed and the incident details
+- On-call notifications inform you when you go on-call or when your shift ends
 
 ## API Integration
 

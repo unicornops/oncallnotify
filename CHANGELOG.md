@@ -2,6 +2,11 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [Unreleased]
+### Features
+- Add native macOS notifications for alert and on-call status changes
+
+- - -
 ## v0.7.2 - 2025-12-13
 #### Bug Fixes
 - Update app icon images in asset catalog - (2f8c130) - Rob Lazzurs

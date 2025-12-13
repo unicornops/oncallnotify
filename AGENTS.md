@@ -38,20 +38,21 @@ OnCall Notify is a native macOS status bar application written in Swift that mon
 │  • Fetches data from API every 60 seconds                       │
 │  • Processes incidents and on-call schedules                    │
 │  • Updates @Published alertSummary                              │
+│  • Sends updates to NotificationService                         │
 │  • Currently: PagerDuty implementation                          │
 │  • Future: Multi-service abstraction                            │
 └────────────────────────────┬────────────────────────────────────┘
                              │
-                   ┌─────────┴─────────┐
-                   │                   │
-                   ▼                   ▼
-        ┌──────────────────┐  ┌──────────────────┐
-        │  KeychainHelper  │  │  PagerDuty API   │
-        │  • Get API token │  │  • GET /users/me │
-        │  • Secure storage│  │  • GET /incidents│
-        │  • Service: com. │  │  • GET /oncalls  │
-        │    oncall.notify │  └──────────────────┘
-        └──────────────────┘           │
+                   ┌─────────┴─────────┬───────────────────┐
+                   │                   │                   │
+                   ▼                   ▼                   ▼
+        ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+        │  KeychainHelper  │  │  PagerDuty API   │  │ Notification     │
+        │  • Get API token │  │  • GET /users/me │  │ Service          │
+        │  • Secure storage│  │  • GET /incidents│  │ • Detects changes│
+        │  • Service: com. │  │  • GET /oncalls  │  │ • Sends macOS    │
+        │    oncall.notify │  └──────────────────┘  │   notifications  │
+        └──────────────────┘           │            └──────────────────┘
                                        ▼
                               ┌──────────────────┐
                               │   Models.swift   │
@@ -113,6 +114,7 @@ OnCallNotify/
 │   └── Models.swift              # All data models: Incident, Oncall, User, etc.
 ├── Services/
 │   ├── OnCallService.swift       # Service abstraction layer (currently PagerDuty)
+│   ├── NotificationService.swift # Native macOS notification management
 │   └── KeychainHelper.swift      # Secure API token storage in macOS Keychain
 ├── Views/
 │   ├── MenuView.swift            # Popover menu UI with alerts and on-call status
@@ -501,7 +503,6 @@ Current constraints to be aware of:
 - Single account per service
 - Fixed 60-second refresh interval (code change required)
 - Shows only user's assigned incidents
-- No desktop notifications yet
 - No offline mode (requires internet connection)
 
 ## Future Enhancements Roadmap
@@ -510,12 +511,13 @@ Current constraints to be aware of:
 - [x] PagerDuty integration
 - [x] Basic alert monitoring
 - [x] On-call status display
+- [x] Native macOS notifications
 
 ### Phase 2 (Near Term)
-1. Desktop notifications for new incidents
-2. Customizable refresh interval in Settings
-3. Incident acknowledgment from app
-4. Sound alerts
+1. Customizable refresh interval in Settings
+2. Incident acknowledgment from app
+3. Sound alerts (customizable)
+4. Notification preferences in Settings
 
 ### Phase 3 (Multi-Service)
 1. Service abstraction layer
