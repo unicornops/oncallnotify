@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.7.3 - 2025-12-13
+#### Bug Fixes
+- Remove temporary marker files - (24a1e09) - Rob Lazzurs
+#### Documentation
+- replace Opsgenie with Atlassian Compass and Jira Service Management - (a7e2584) - copilot-swe-agent[bot]
+
+- - -
+
 ## v0.7.2 - 2025-12-13
 #### Bug Fixes
 - Update app icon images in asset catalog - (2f8c130) - Rob Lazzurs
