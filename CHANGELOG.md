@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.7.0 - 2025-12-13
+#### Features
+- Add app icon keys to Info.plist - (f502bd0) - Rob Lazzurs
+
+- - -
+
 ## v0.6.0 - 2025-12-13
 #### Features
 - Remove unused xcodebuild flags from CI workflow - (d087e14) - Rob Lazzurs
