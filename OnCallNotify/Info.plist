@@ -28,5 +28,7 @@
 	<string>Copyright © 2024. All rights reserved.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>OnCall Notify sends notifications for new alerts, status changes, and on-call schedule changes to keep you informed about your on-call responsibilities.</string>
 </dict>
 </plist>

@@ -10,7 +10,9 @@
 		A10000001ABC000000000001 /* OnCallNotifyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000001ABC000000000002 /* OnCallNotifyApp.swift */; };
 		A10000001ABC000000000003 /* StatusBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000001ABC000000000004 /* StatusBarController.swift */; };
 		A10000001ABC000000000005 /* OnCallService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000001ABC000000000006 /* OnCallService.swift */; };
-		A10000001ABC000000000007 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000001ABC000000000008 /* KeychainHelper.swift */; };
+		A10000001ABC000000000007 /* KeychainHelper.swift in Sources */
+		0EEE025F23CF4120B873E205 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7A16C977BA249749B2AEC64 /* NotificationService.swift */; }; = {isa = PBXBuildFile; fileRef = A10000001ABC000000000008 /* KeychainHelper.swift */;
+		E7A16C977BA249749B2AEC64 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; }; };
 		A10000001ABC000000000009 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000001ABC000000000010 /* Models.swift */; };
 		A10000001ABC000000000011 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000001ABC000000000012 /* SettingsView.swift */; };
 		A10000001ABC000000000013 /* MenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000001ABC000000000014 /* MenuView.swift */; };
@@ -84,6 +86,7 @@
 			children = (
 				A10000001ABC000000000006 /* OnCallService.swift */,
 				A10000001ABC000000000008 /* KeychainHelper.swift */,
+				E7A16C977BA249749B2AEC64 /* NotificationService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -169,7 +172,8 @@
 				A10000001ABC000000000001 /* OnCallNotifyApp.swift in Sources */,
 				A10000001ABC000000000003 /* StatusBarController.swift in Sources */,
 				A10000001ABC000000000005 /* OnCallService.swift in Sources */,
-				A10000001ABC000000000007 /* KeychainHelper.swift in Sources */,
+				A10000001ABC000000000007 /* KeychainHelper.swift in Sources */
+		0EEE025F23CF4120B873E205 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7A16C977BA249749B2AEC64 /* NotificationService.swift */; };,
 				A10000001ABC000000000009 /* Models.swift in Sources */,
 				A10000001ABC000000000011 /* SettingsView.swift in Sources */,
 				A10000001ABC000000000013 /* MenuView.swift in Sources */,

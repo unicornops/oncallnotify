@@ -327,6 +327,9 @@ class OnCallService: ObservableObject {
         summary.nextOnCallShift = nextShift
 
         self.alertSummary = summary
+        
+        // Process notification changes
+        NotificationService.shared.processAlertChanges(currentSummary: summary)
     }
 
     // MARK: - Public Helper Methods
