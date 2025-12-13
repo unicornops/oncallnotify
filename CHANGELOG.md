@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.8.0 - 2025-12-13
+#### Features
+- Fetch future on-call schedules to display next shift start time - (dcd1ebc) - copilot-swe-agent[bot]
+
+- - -
+
 ## v0.7.3 - 2025-12-13
 #### Bug Fixes
 - Remove temporary marker files - (24a1e09) - Rob Lazzurs
