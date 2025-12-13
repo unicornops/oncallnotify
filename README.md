@@ -30,7 +30,8 @@ OnCall Notify is your unified on-call status monitor for macOS. Currently suppor
 - ✅ **PagerDuty** - Full support for incidents and on-call schedules
 
 ### Coming Soon
-- 🚧 **Opsgenie** - Planned
+- 🚧 **Atlassian Compass** - Planned
+- 🚧 **Atlassian Jira Service Management** - Planned
 - 🚧 **VictorOps/Splunk On-Call** - Planned
 - 🚧 **Alertmanager** - Planned
 - 🚧 **Custom webhooks** - Planned
@@ -294,7 +295,8 @@ We welcome contributions to add support for additional on-call and incident mana
 - [ ] Dark mode optimizations
 
 ### Future Services
-- [ ] Opsgenie integration
+- [ ] Atlassian Compass integration
+- [ ] Atlassian Jira Service Management integration
 - [ ] VictorOps/Splunk On-Call integration
 - [ ] Alertmanager integration
 - [ ] Support for multiple accounts across services
