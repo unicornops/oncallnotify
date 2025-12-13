@@ -177,6 +177,21 @@ struct AlertSummary {
     }
 }
 
+// MARK: - Acknowledge Request/Response Models
+
+struct AcknowledgeIncidentRequest: Codable {
+    let incident: AcknowledgeIncidentBody
+    
+    struct AcknowledgeIncidentBody: Codable {
+        let type: String = "incident_reference"
+        let status: String = "acknowledged"
+    }
+}
+
+struct AcknowledgeIncidentResponse: Codable {
+    let incident: Incident
+}
+
 // MARK: - Error Models
 
 enum OnCallError: Error, LocalizedError {
@@ -188,6 +203,7 @@ enum OnCallError: Error, LocalizedError {
     case serverError(statusCode: Int)
     case apiError(technicalMessage: String, userMessage: String? = nil)
     case networkError(underlyingError: Error, userMessage: String? = nil)
+    case acknowledgmentFailed(message: String)
 
     var errorDescription: String? {
         switch self {
@@ -211,6 +227,8 @@ enum OnCallError: Error, LocalizedError {
             return userMessage ?? "Unable to connect to PagerDuty. Please check your token and connection."
         case .networkError(_, let userMessage):
             return userMessage ?? "Network connection error. Please check your internet connection."
+        case .acknowledgmentFailed(let message):
+            return message
         }
     }
 
@@ -233,6 +251,8 @@ enum OnCallError: Error, LocalizedError {
             return "API Error: \(technicalMessage)"
         case .networkError(let error, _):
             return "Network Error: \(error.localizedDescription)"
+        case .acknowledgmentFailed(let message):
+            return "Acknowledgment Failed: \(message)"
         }
     }
 }

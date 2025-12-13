@@ -284,6 +284,8 @@ struct MenuView: View {
 
 struct IncidentRowView: View {
     let incident: Incident
+    @State private var isAcknowledging = false
+    @State private var acknowledgmentError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -316,23 +318,51 @@ struct IncidentRowView: View {
                             .font(.caption2)
                     }
                     .foregroundColor(.secondary)
+
+                    // Error message
+                    if let error = acknowledgmentError {
+                        Text(error)
+                            .font(.caption2)
+                            .foregroundColor(.red)
+                            .lineLimit(2)
+                    }
                 }
 
                 Spacer()
 
-                // Open button
-                if let urlString = incident.htmlUrl,
-                   let url = URL(string: urlString) {
-                    Button(
-                        action: {
+                HStack(spacing: 8) {
+                    // Acknowledge button (only for triggered incidents)
+                    if incident.status == .triggered {
+                        Button(action: {
+                            acknowledgeIncident()
+                        }) {
+                            if isAcknowledging {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                                    .frame(width: 16, height: 16)
+                            } else {
+                                Image(systemName: "checkmark.circle")
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isAcknowledging)
+                        .help("Acknowledge incident")
+                    }
+
+                    // Open button
+                    if let urlString = incident.htmlUrl,
+                        let url = URL(string: urlString)
+                    {
+                        Button(action: {
                             NSWorkspace.shared.open(url)
-                        },
-                        label: {
+                        }) {
                             Image(systemName: "arrow.up.right.square")
                                 .font(.caption)
                         }
-                    )
-                    .buttonStyle(.plain)
+                        .buttonStyle(.plain)
+                    }
                 }
             }
         }
@@ -352,6 +382,21 @@ struct IncidentRowView: View {
             return .orange
         case .resolved:
             return .green
+        }
+    }
+
+    private func acknowledgeIncident() {
+        isAcknowledging = true
+        acknowledgmentError = nil
+
+        Task {
+            do {
+                try await OnCallService.shared.acknowledgeIncident(incidentId: incident.id)
+                // Success - the service will refresh and update the UI
+            } catch {
+                acknowledgmentError = error.localizedDescription
+            }
+            isAcknowledging = false
         }
     }
 

@@ -121,6 +121,61 @@ class OnCallService: ObservableObject {
 
     // MARK: - API Methods
 
+    func acknowledgeIncident(incidentId: String) async throws {
+        let endpoint = "/incidents/\(incidentId)"
+        guard let url = URL(string: baseURL + endpoint) else {
+            throw OnCallError.invalidURL
+        }
+
+        guard let token = KeychainHelper.shared.getAPIToken() else {
+            throw OnCallError.noAPIToken
+        }
+
+        logSecureRequest(url)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("Token token=\(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+
+        // Create request body
+        let requestBody = AcknowledgeIncidentRequest(
+            incident: AcknowledgeIncidentRequest.AcknowledgeIncidentBody()
+        )
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        request.httpBody = try encoder.encode(requestBody)
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw OnCallError.invalidResponse
+        }
+
+        logSecureResponse(statusCode: httpResponse.statusCode, bytes: data.count)
+
+        guard httpResponse.statusCode == 200 else {
+            if httpResponse.statusCode == 401 {
+                throw OnCallError.unauthorized
+            } else if httpResponse.statusCode == 429 {
+                throw OnCallError.rateLimited
+            } else if httpResponse.statusCode >= 500 {
+                throw OnCallError.serverError(statusCode: httpResponse.statusCode)
+            } else {
+                throw OnCallError.acknowledgmentFailed(message: "Failed to acknowledge incident")
+            }
+        }
+
+        // Refresh data to get latest from server
+        Task {
+            try? await Task.sleep(nanoseconds: 1_000_000_000) // Wait 1 second
+            await fetchAllData()
+        }
+    }
+
     private func fetchCurrentUser() async throws {
         let endpoint = "/users/me"
         let url = try buildURL(endpoint: endpoint)
