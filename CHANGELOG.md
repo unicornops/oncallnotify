@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.7.2 - 2025-12-13
+#### Bug Fixes
+- Update app icon images in asset catalog - (2f8c130) - Rob Lazzurs
+
+- - -
+
 ## v0.7.1 - 2025-12-13
 #### Bug Fixes
 - Remove CFBundleIconFile from Info.plist - (ca99b28) - Rob Lazzurs
