@@ -667,13 +667,14 @@ Current constraints to be aware of:
 - [x] PagerDuty integration
 - [x] Basic alert monitoring
 - [x] On-call status display
+- [x] Incident acknowledgment from app
 
 ### Phase 2 (Near Term)
 
 1. Desktop notifications for new incidents
 2. Customizable refresh interval in Settings
-3. Incident acknowledgment from app
-4. Sound alerts
+3. Sound alerts
+4. Incident resolution from app
 
 ### Phase 3 (Multi-Service)
 
