@@ -26,6 +26,9 @@ class OnCallService: ObservableObject {
     private let minimumFetchInterval: TimeInterval = 5.0  // Minimum 5 seconds between fetches
     private let maxRetryCount: Int = 3
     private var isBackingOff: Bool = false
+    
+    // On-call schedule lookup window (days into the future)
+    private let futureScheduleLookupDays: Int = 30
 
     private lazy var urlSession: URLSession = {
         let config = URLSessionConfiguration.default
@@ -210,10 +213,26 @@ class OnCallService: ObservableObject {
         let endpoint = "/oncalls"
         var components = URLComponents(string: baseURL + endpoint)!
 
+        // Set time range to fetch current and future on-call schedules
+        // This allows us to show when the next shift starts
+        let now = Date()
+        guard let futureDate = Calendar.current.date(byAdding: .day, value: futureScheduleLookupDays, to: now) else {
+            throw OnCallError.apiError(
+                technicalMessage: "Failed to calculate future date",
+                userMessage: "Unable to process schedule data"
+            )
+        }
+        
+        let dateFormatter = ISO8601DateFormatter()
+        let sinceParam = dateFormatter.string(from: now)
+        let untilParam = dateFormatter.string(from: futureDate)
+
         components.queryItems = [
             URLQueryItem(name: "include[]", value: "users"),
             URLQueryItem(name: "include[]", value: "schedules"),
-            URLQueryItem(name: "limit", value: "100")
+            URLQueryItem(name: "limit", value: "100"),
+            URLQueryItem(name: "since", value: sinceParam),
+            URLQueryItem(name: "until", value: untilParam)
         ]
 
         // Filter by current user if we have the ID
