@@ -123,22 +123,11 @@ class OnCallService: ObservableObject {
 
     func acknowledgeIncident(incidentId: String) async throws {
         let endpoint = "/incidents/\(incidentId)"
-        guard let url = URL(string: baseURL + endpoint) else {
-            throw OnCallError.invalidURL
-        }
-
-        guard let token = KeychainHelper.shared.getAPIToken() else {
-            throw OnCallError.noAPIToken
-        }
-
-        logSecureRequest(url)
-
-        var request = URLRequest(url: url)
+        let url = try buildURL(endpoint: endpoint)
+        var request = try buildRequest(url: url)
+        
+        // Override method to PUT for acknowledgment
         request.httpMethod = "PUT"
-        request.setValue("Token token=\(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.cachePolicy = .reloadIgnoringLocalCacheData
 
         // Create request body
         let requestBody = AcknowledgeIncidentRequest(
@@ -169,11 +158,9 @@ class OnCallService: ObservableObject {
             }
         }
 
-        // Refresh data to get latest from server
-        Task {
-            try? await Task.sleep(nanoseconds: 1_000_000_000) // Wait 1 second
-            await fetchAllData()
-        }
+        // Refresh data to get latest from server after a brief delay
+        try? await Task.sleep(nanoseconds: 1_000_000_000) // Wait 1 second
+        await fetchAllData()
     }
 
     private func fetchCurrentUser() async throws {
