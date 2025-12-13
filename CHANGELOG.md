@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.5.0 - 2025-12-13
+#### Features
+- Set asset catalog deployment flag in CI and improve icon checks - (6dd92b8) - Rob Lazzurs
+
+- - -
+
 ## v0.4.0 - 2025-12-13
 #### Features
 - Add icon file verification steps to build workflow - (a958637) - Rob Lazzurs
