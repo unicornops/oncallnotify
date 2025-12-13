@@ -103,8 +103,18 @@ class NotificationService: ObservableObject {
         content.body = incident.title
         content.sound = .default
         
-        // Add urgency to subtitle
-        content.subtitle = "Urgency: \(incident.urgency.capitalized)"
+        // Add urgency to subtitle with proper formatting
+        let urgencyDisplay: String
+        switch incident.urgency.lowercased() {
+        case "high":
+            urgencyDisplay = "High"
+        case "low":
+            urgencyDisplay = "Low"
+        default:
+            // Handle any unexpected urgency values
+            urgencyDisplay = incident.urgency.capitalized
+        }
+        content.subtitle = "Urgency: \(urgencyDisplay)"
         
         // Add incident URL to userInfo for potential future action handling
         if let url = incident.htmlUrl {
@@ -180,7 +190,7 @@ class NotificationService: ObservableObject {
         }
         
         let request = UNNotificationRequest(
-            identifier: "oncall-status-\(Date().timeIntervalSince1970)",
+            identifier: "oncall-status-\(UUID().uuidString)",
             content: content,
             trigger: nil
         )
