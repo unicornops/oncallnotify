@@ -201,10 +201,7 @@ jobs:
             -scheme OnCallNotify \
             -configuration Debug \
             -derivedDataPath build/DerivedData \
-            -skipPackagePluginValidation \
-            -skipMacroValidation \
             CODE_SIGNING_ALLOWED=NO \
-            ASSETCATALOG_COMPILER_SKIP_APP_STORE_DEPLOYMENT=NO \
             build
 
       - name: Build (Release - Unsigned)
@@ -215,10 +212,7 @@ jobs:
             -scheme OnCallNotify \
             -configuration Release \
             -derivedDataPath build/DerivedData \
-            -skipPackagePluginValidation \
-            -skipMacroValidation \
             CODE_SIGNING_ALLOWED=NO \
-            ASSETCATALOG_COMPILER_SKIP_APP_STORE_DEPLOYMENT=NO \
             build
 
       - name: Build (Release - Signed)
@@ -242,8 +236,6 @@ jobs:
             -scheme OnCallNotify \
             -configuration Release \
             -derivedDataPath build/DerivedData \
-            -skipPackagePluginValidation \
-            -skipMacroValidation \
             CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" \
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM="$CERT_TEAM_ID" \
@@ -251,7 +243,6 @@ jobs:
             CODE_SIGN_ENTITLEMENTS="OnCallNotify/OnCallNotify.entitlements" \
             CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
             OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_NAME --options runtime --timestamp" \
-            ASSETCATALOG_COMPILER_SKIP_APP_STORE_DEPLOYMENT=NO \
             build
 
       - name: Find built app
