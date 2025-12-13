@@ -14,7 +14,7 @@ OnCall Notify is a native macOS status bar application written in Swift that mon
 - No external dependencies (pure Swift)
 - Total LOC: ~1,300 lines across 7 Swift files
 - **Current Services**: PagerDuty
-- **Planned Services**: Opsgenie, VictorOps, Alertmanager, Custom Webhooks
+- **Planned Services**: Atlassian Compass, Atlassian Jira Service Management, VictorOps, Alertmanager, Custom Webhooks
 
 ### Data Flow
 
@@ -173,7 +173,7 @@ OnCallNotify/
 
 ### Future Service Integration Guidelines
 When adding new services:
-1. Create service-specific response models (e.g., `OpsgenieIncidentsResponse`)
+1. Create service-specific response models (e.g., `AtlassianCompassIncidentsResponse`)
 2. Map to common internal models (`Incident`, `Oncall`, `AlertSummary`)
 3. Consider creating a protocol for service abstraction
 4. Use separate Keychain entries per service
@@ -272,7 +272,7 @@ When adding support for a new on-call service:
 
 1. **Create Service-Specific Models** in `Models/Models.swift`:
    ```swift
-   struct OpsgenieIncidentsResponse: Codable {
+   struct AtlassianCompassIncidentsResponse: Codable {
        // Service-specific structure
    }
    ```
@@ -447,7 +447,7 @@ Examples:
 - `[Settings] Add refresh interval configuration`
 - `[API] Fix rate limiting error handling`
 - `[UI] Improve incident list layout`
-- `[Service] Add Opsgenie integration`
+- `[Service] Add Atlassian Compass integration`
 
 ## Debugging Tips
 
@@ -519,10 +519,11 @@ Current constraints to be aware of:
 
 ### Phase 3 (Multi-Service)
 1. Service abstraction layer
-2. Opsgenie integration
-3. VictorOps/Splunk On-Call integration
-4. Service selection UI in Settings
-5. Per-service configuration
+2. Atlassian Compass integration
+3. Atlassian Jira Service Management integration
+4. VictorOps/Splunk On-Call integration
+5. Service selection UI in Settings
+6. Per-service configuration
 
 ### Phase 4 (Advanced)
 1. Multiple account support across services
@@ -556,7 +557,7 @@ protocol OnCallServiceProtocol {
 ### Configuration Management
 - Store service selection in UserDefaults
 - Store credentials separately per service in Keychain
-- Use service-specific account identifiers like `pagerduty-api-token`, `opsgenie-api-token`
+- Use service-specific account identifiers like `pagerduty-api-token`, `atlassian-compass-api-token`, `jira-service-mgmt-api-token`
 
 ### UI Considerations
 - Add service selection dropdown in Settings
