@@ -36,6 +36,49 @@ jobs:
           echo "macOS version:"
           sw_vers
 
+      - name: Verify icon files before build
+        run: |
+          echo "Checking icon files..."
+          ICON_DIR="OnCallNotify/Assets.xcassets/AppIcon.appiconset"
+
+          if [ ! -d "$ICON_DIR" ]; then
+            echo "✗ Icon directory not found: $ICON_DIR"
+            exit 1
+          fi
+          echo "✓ Icon directory found"
+
+          ICON_COUNT=$(ls -1 "$ICON_DIR"/*.png 2>/dev/null | wc -l | xargs)
+          if [ "$ICON_COUNT" -ne 7 ]; then
+            echo "✗ Expected 7 icon files, found $ICON_COUNT"
+            ls -1 "$ICON_DIR"/*.png 2>/dev/null || echo "No PNG files found"
+            exit 1
+          fi
+          echo "✓ All 7 icon files present"
+
+          if [ ! -f "$ICON_DIR/Contents.json" ]; then
+            echo "✗ Contents.json not found"
+            exit 1
+          fi
+          echo "✓ Contents.json found"
+
+          # Verify Contents.json is valid JSON
+          if ! python3 -m json.tool "$ICON_DIR/Contents.json" > /dev/null 2>&1; then
+            echo "✗ Contents.json is not valid JSON"
+            exit 1
+          fi
+          echo "✓ Contents.json is valid JSON"
+
+          # Verify each PNG file is valid
+          for icon in "$ICON_DIR"/*.png; do
+            if ! file "$icon" | grep -q "PNG image data"; then
+              echo "✗ Invalid PNG file: $icon"
+              exit 1
+            fi
+          done
+          echo "✓ All icon PNG files are valid"
+
+          echo "✅ Icon files verification complete"
+
       # Only sign on main branch pushes (not PRs, even to main)
       - name: Setup code signing
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -253,6 +296,34 @@ jobs:
             exit 1
           fi
           echo "✓ Info.plist found"
+
+          # Verify icon assets are embedded
+          if [ ! -f "$APP_PATH/Contents/Resources/Assets.car" ]; then
+            echo "✗ Assets.car (compiled asset catalog) not found"
+            exit 1
+          fi
+          echo "✓ Assets.car found"
+
+          ASSETS_SIZE=$(stat -f%z "$APP_PATH/Contents/Resources/Assets.car" 2>/dev/null || echo 0)
+          if [ "$ASSETS_SIZE" -lt 100000 ]; then
+            echo "✗ Assets.car is too small (${ASSETS_SIZE} bytes), likely missing icons"
+            exit 1
+          fi
+          echo "✓ Assets.car size valid (${ASSETS_SIZE} bytes)"
+
+          # Verify source icon files exist before build
+          ICON_DIR="OnCallNotify/Assets.xcassets/AppIcon.appiconset"
+          if [ ! -d "$ICON_DIR" ]; then
+            echo "✗ Icon directory not found: $ICON_DIR"
+            exit 1
+          fi
+
+          ICON_COUNT=$(ls -1 "$ICON_DIR"/*.png 2>/dev/null | wc -l | xargs)
+          if [ "$ICON_COUNT" -ne 7 ]; then
+            echo "✗ Expected 7 icon files, found $ICON_COUNT"
+            exit 1
+          fi
+          echo "✓ All 7 icon source files present"
 
       - name: Notarize app
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
