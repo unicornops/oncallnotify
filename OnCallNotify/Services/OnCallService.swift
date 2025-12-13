@@ -26,7 +26,7 @@ class OnCallService: ObservableObject {
     private let minimumFetchInterval: TimeInterval = 5.0  // Minimum 5 seconds between fetches
     private let maxRetryCount: Int = 3
     private var isBackingOff: Bool = false
-    
+
     // On-call schedule lookup window (days into the future)
     private let futureScheduleLookupDays: Int = 30
 
@@ -101,7 +101,6 @@ class OnCallService: ObservableObject {
 
             // Mark successful fetch
             handleFetchSuccess()
-
         } catch {
             self.lastError = error
 
@@ -111,13 +110,12 @@ class OnCallService: ObservableObject {
             // Log technical details securely
             #if DEBUG
             if let onCallError = error as? OnCallError {
-                print("[DEBUG] \(onCallError.technicalDescription)")
+                Self.logger.debug("Error: \(onCallError.technicalDescription, privacy: .private)")
             } else {
-                print("[DEBUG] \(error.localizedDescription)")
+                Self.logger.debug("Error: \(error.localizedDescription, privacy: .private)")
             }
             #endif
         }
-
         self.isLoading = false
     }
 
@@ -159,7 +157,9 @@ class OnCallService: ObservableObject {
 
     private func fetchIncidents() async throws -> [Incident] {
         let endpoint = "/incidents"
-        var components = URLComponents(string: baseURL + endpoint)!
+        guard var components = URLComponents(string: baseURL + endpoint) else {
+            throw OnCallError.invalidURL
+        }
 
         // Get incidents that are triggered or acknowledged
         components.queryItems = [
@@ -211,7 +211,9 @@ class OnCallService: ObservableObject {
 
     private func fetchOncalls() async throws -> [Oncall] {
         let endpoint = "/oncalls"
-        var components = URLComponents(string: baseURL + endpoint)!
+        guard var components = URLComponents(string: baseURL + endpoint) else {
+            throw OnCallError.invalidURL
+        }
 
         // Set time range to fetch current and future on-call schedules
         // This allows us to show when the next shift starts
@@ -222,7 +224,7 @@ class OnCallService: ObservableObject {
                 userMessage: "Unable to process schedule data"
             )
         }
-        
+
         let dateFormatter = ISO8601DateFormatter()
         let sinceParam = dateFormatter.string(from: now)
         let untilParam = dateFormatter.string(from: futureDate)
@@ -285,7 +287,7 @@ class OnCallService: ObservableObject {
     }
 
     private func buildRequest(url: URL) throws -> URLRequest {
-        guard let token = KeychainHelper.shared.getAPIToken() else {
+        guard let apiToken = KeychainHelper.shared.getAPIToken() else {
             throw OnCallError.noAPIToken
         }
 
@@ -294,8 +296,8 @@ class OnCallService: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
 
-        // Set headers - token will not be logged due to secure logging
-        request.setValue("Token token=\(token)", forHTTPHeaderField: "Authorization")
+        // Set headers - API token will not be logged due to secure logging
+        request.setValue("Token token=\(apiToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
@@ -327,7 +329,6 @@ class OnCallService: ObservableObject {
                let endString = oncall.end,
                let startDate = dateFormatter.date(from: startString),
                let endDate = dateFormatter.date(from: endString) {
-
                 // Currently on call
                 if startDate <= now && endDate > now {
                     isCurrentlyOnCall = true
@@ -335,7 +336,11 @@ class OnCallService: ObservableObject {
 
                 // Find next shift
                 if startDate > now {
-                    if nextShift == nil || startDate < nextShift! {
+                    if let currentNextShift = nextShift {
+                        if startDate < currentNextShift {
+                            nextShift = startDate
+                        }
+                    } else {
                         nextShift = startDate
                     }
                 }

@@ -4,9 +4,13 @@ This file provides guidance for AI coding agents working on the OnCall Notify ma
 
 ## Project Overview
 
-OnCall Notify is a native macOS status bar application written in Swift that monitors on-call alerts and status across multiple incident management services. Currently supporting **PagerDuty** with architecture designed for easy addition of more services. It uses SwiftUI for the UI, AppKit for menu bar integration, and the macOS Keychain for secure credential storage.
+OnCall Notify is a native macOS status bar application written in Swift that monitors on-call alerts and
+status across multiple incident management services. Currently supporting **PagerDuty** with architecture
+designed for easy addition of more services. It uses SwiftUI for the UI, AppKit for menu bar integration,
+and the macOS Keychain for secure credential storage.
 
 **Key Facts:**
+
 - Language: Swift 5.0
 - UI Framework: SwiftUI + AppKit
 - Target: macOS 13.0+ (Ventura and later)
@@ -18,7 +22,7 @@ OnCall Notify is a native macOS status bar application written in Swift that mon
 
 ### Data Flow
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                        User Actions                             │
 │  (Menu Bar Click, Settings Update, Manual Refresh)              │
@@ -71,6 +75,7 @@ OnCall Notify is a native macOS status bar application written in Swift that mon
 ## Build and Development Commands
 
 ### Building
+
 ```bash
 # Open in Xcode
 open OnCallNotify.xcodeproj
@@ -88,6 +93,7 @@ xcodebuild -project OnCallNotify.xcodeproj -scheme OnCallNotify -configuration R
 ```
 
 ### Running
+
 ```bash
 # Run in Xcode (press ⌘R)
 # Or run built app:
@@ -95,6 +101,7 @@ open build/Release/OnCallNotify.app
 ```
 
 ### Cleaning
+
 ```bash
 # Clean in Xcode: Product → Clean Build Folder (⇧⌘K)
 # Or from command line:
@@ -104,7 +111,7 @@ rm -rf ~/Library/Developer/Xcode/DerivedData/OnCallNotify-*
 
 ## Project Structure
 
-```
+```text
 OnCallNotify/
 ├── OnCallNotifyApp.swift         # App entry point, AppDelegate setup
 ├── StatusBarController.swift     # Menu bar icon, popover management, UI updates
@@ -123,6 +130,7 @@ OnCallNotify/
 ## Code Style and Conventions
 
 ### Swift Style
+
 - **Indentation**: 4 spaces (no tabs)
 - **Line length**: Aim for 100 characters, max 120
 - **Naming**: Use clear, descriptive names following Swift API Design Guidelines
@@ -131,6 +139,7 @@ OnCallNotify/
 - **NO force unwraps**: Always handle optionals safely with `?`, `??`, or `guard`
 
 ### SwiftUI Conventions
+
 - Use `@State` for view-local state
 - Use `@ObservedObject` for shared observable objects
 - Use `@Published` in ObservableObject classes for reactive properties
@@ -140,6 +149,7 @@ OnCallNotify/
 - Use `SettingsLink` for opening Settings (macOS 14.0+), with fallback for macOS 13.0
 
 ### Architecture Patterns
+
 - **MVVM**: Models (data), Views (UI), ViewModels/Services (business logic)
 - **Reactive**: Use Combine's `@Published` and `.sink()` for data flow
 - **Async/Await**: Use modern concurrency for all API calls
@@ -147,6 +157,7 @@ OnCallNotify/
 - **Service Abstraction**: Design for multi-service support from the start
 
 ### Naming Conventions
+
 - Classes/Structs: `PascalCase` (e.g., `OnCallService`)
 - Functions/Variables: `camelCase` (e.g., `fetchIncidents`)
 - Constants: `camelCase` (e.g., `baseURL`)
@@ -155,16 +166,19 @@ OnCallNotify/
 ## API Integration Details
 
 ### PagerDuty REST API v2 (Current)
+
 - Base URL: `https://api.pagerduty.com`
 - Authentication: Bearer token in `Authorization` header format: `Token token=YOUR_TOKEN`
 - All requests require: `Accept: application/json` and `Content-Type: application/json` headers
 
 ### Endpoints Used
+
 1. `GET /users/me` - Get current user info (cached after first fetch)
 2. `GET /incidents` - Fetch incidents with filters: `statuses[]=triggered&statuses[]=acknowledged&user_ids[]=<user_id>&limit=100`
 3. `GET /oncalls` - Fetch on-call schedules with `user_ids[]=<user_id>&include[]=users&include[]=schedules`
 
 ### Data Models
+
 - All API responses use `Codable` for JSON parsing
 - Use `ISO8601DateFormatter` for date/time parsing
 - CodingKeys map snake_case (API) to camelCase (Swift)
@@ -172,7 +186,9 @@ OnCallNotify/
 - Generic models like `AlertSummary` are service-agnostic
 
 ### Future Service Integration Guidelines
+
 When adding new services:
+
 1. Create service-specific response models (e.g., `AtlassianCompassIncidentsResponse`)
 2. Map to common internal models (`Incident`, `Oncall`, `AlertSummary`)
 3. Consider creating a protocol for service abstraction
@@ -182,7 +198,9 @@ When adding new services:
 ## Testing Instructions
 
 ### Manual Testing Checklist
+
 Before committing changes, verify:
+
 - [ ] Menu bar icon appears and updates correctly
 - [ ] Icon color changes based on alert status (red/orange/blue/gray)
 - [ ] Badge shows correct alert count
@@ -197,6 +215,7 @@ Before committing changes, verify:
 - [ ] App quits cleanly without crashes
 
 ### Test with Different States
+
 - No API token configured
 - Invalid API token
 - Valid token but no incidents
@@ -205,7 +224,9 @@ Before committing changes, verify:
 - Network disconnection (test error handling)
 
 ### Console Logging
+
 Check Console.app for errors when debugging:
+
 ```bash
 # Filter for app logs
 log stream --predicate 'process == "OnCallNotify"' --level debug
@@ -214,6 +235,7 @@ log stream --predicate 'process == "OnCallNotify"' --level debug
 ## Common Development Tasks
 
 ### Adding a New API Endpoint
+
 1. Add response model to `Models/Models.swift` (conform to `Codable`)
 2. Add fetch method to `OnCallService.swift`
 3. Use async/await pattern: `func fetchNewData() async throws -> [Model]`
@@ -221,19 +243,25 @@ log stream --predicate 'process == "OnCallNotify"' --level debug
 5. Update UI in `MenuView.swift` or create new view
 
 ### Modifying the Menu Bar Icon
+
 Edit `StatusBarController.swift`:
+
 - `updateStatusBarButton()` method controls icon appearance
 - Use SF Symbols for icons: `NSImage(systemSymbolName: "...")`
 - Color: `iconImage.isTemplate = true` + set tint color
 
 ### Adding a Settings Field
+
 Edit `SettingsView.swift`:
+
 - Add `@State` variable for the field
 - Add UI in the appropriate `Section`
 - Implement save/load logic (use UserDefaults or Keychain)
 
 ### Opening Settings Window
+
 Use conditional availability to support both macOS 13.0 and 14.0+:
+
 ```swift
 if #available(macOS 14.0, *) {
     SettingsLink {
@@ -258,10 +286,13 @@ private func openSettings() {
     }
 }
 ```
+
 This provides SettingsLink on macOS 14+ while maintaining macOS 13.0 compatibility.
 
 ### Changing Refresh Interval
+
 Edit `OnCallService.swift`:
+
 - Find `Timer.scheduledTimer(withTimeInterval: 60, ...)`
 - Change `60` to desired seconds
 - Consider making this user-configurable in Settings
@@ -271,6 +302,7 @@ Edit `OnCallService.swift`:
 When adding support for a new on-call service:
 
 1. **Create Service-Specific Models** in `Models/Models.swift`:
+
    ```swift
    struct AtlassianCompassIncidentsResponse: Codable {
        // Service-specific structure
@@ -300,6 +332,7 @@ When adding support for a new on-call service:
 ## Security Considerations
 
 ### API Token Storage
+
 - **ALWAYS** use KeychainHelper for API tokens
 - **NEVER** store tokens in UserDefaults, plain text, or logs
 - **NEVER** print tokens to console (even in debug mode)
@@ -307,11 +340,13 @@ When adding support for a new on-call service:
 - Use service-specific keychain entries to isolate credentials
 
 ### Keychain Access
+
 - Service identifier: `com.oncall.notify`
 - Account identifier: `api-token` (currently, will need service-specific identifiers for multi-service)
 - Accessibility: `kSecAttrAccessibleAfterFirstUnlock`
 
 ### Network Security
+
 - All API calls must use HTTPS
 - Validate SSL certificates (URLSession default behavior)
 - Handle authentication failures gracefully
@@ -319,6 +354,7 @@ When adding support for a new on-call service:
 ## Error Handling
 
 ### Pattern
+
 ```swift
 do {
     let data = try await fetchData()
@@ -337,6 +373,7 @@ do {
 ```
 
 ### User Feedback
+
 - Show errors in UI (don't just log)
 - Use descriptive error messages (see `OnCallError.errorDescription`)
 - Provide actionable suggestions when possible
@@ -345,11 +382,13 @@ do {
 ## Threading and Concurrency
 
 ### Rules
+
 - **API calls**: Background thread (handled automatically by async/await)
 - **UI updates**: ALWAYS on main thread using `DispatchQueue.main.async` or `@MainActor`
 - **Timer callbacks**: May run on background thread, dispatch UI updates to main
 
 ### Example
+
 ```swift
 Task {
     let incidents = try await fetchIncidents() // Background
@@ -362,6 +401,7 @@ Task {
 ## Dependencies and Frameworks
 
 ### System Frameworks (no imports needed beyond these)
+
 - `SwiftUI` - UI framework
 - `AppKit` - Menu bar integration, NSStatusBar, NSPopover
 - `Combine` - Reactive programming (@Published, .sink())
@@ -369,12 +409,14 @@ Task {
 - `Security` - Keychain access
 
 ### NO External Dependencies
+
 - Do not add Swift Package Manager dependencies without discussion
 - Keep the app lightweight and self-contained
 
 ## Documentation Standards
 
 ### Code Comments
+
 ```swift
 // MARK: - Section Name (for organizing code sections)
 
@@ -389,7 +431,9 @@ func publicMethod(name: String) throws -> Result
 ```
 
 ### File Headers
+
 Each Swift file should have:
+
 ```swift
 //
 //  FileName.swift
@@ -400,24 +444,125 @@ Each Swift file should have:
 ```
 
 ### Documentation Files
+
 When modifying features:
+
 - Update README.md if user-facing
 - Update FEATURES.md for technical details
 - Update QUICKSTART.md if setup changes
 - Add to CHANGELOG.md for releases
 - Update TROUBLESHOOTING.md for new issues/solutions
 
+## Pre-commit Checks
+
+**CRITICAL**: All code changes MUST pass pre-commit checks before being committed or submitted in a PR.
+
+### Running Pre-commit Checks
+
+The project uses [pre-commit](https://pre-commit.com/) framework to enforce code quality and consistency:
+
+```bash
+# Install pre-commit (if not already installed)
+brew install pre-commit
+
+# Install the git hooks (one-time setup)
+pre-commit install
+
+# Run all checks manually
+pre-commit run --all-files
+
+# Run checks on staged files only
+pre-commit run
+```
+
+### Pre-commit Hook Configuration
+
+The `.pre-commit-config.yaml` file defines all automated checks:
+
+1. **File Format Checks**:
+   - Trailing whitespace removal
+   - End-of-file fixing
+   - YAML syntax validation
+   - Large file detection (max 500KB)
+   - Merge conflict detection
+
+2. **Swift Linting** (swiftlint):
+   - Code style enforcement
+   - Swift best practices validation
+   - Configured via `.swiftlint.yml`
+
+3. **Swift Formatting** (swiftformat):
+   - Automatic code formatting
+   - Consistent style across codebase
+   - Configured via `.swiftformat` config file
+
+### Agent Requirements
+
+**As an AI coding agent, you MUST:**
+
+1. ✅ Run `pre-commit run --all-files` after making ANY code changes
+2. ✅ Fix ALL issues reported by pre-commit before completing your task
+3. ✅ Never commit code that fails pre-commit checks
+4. ✅ If pre-commit modifies files (auto-formatting), review and accept the changes
+5. ✅ Report pre-commit check results in your response to the user
+
+### Handling Pre-commit Failures
+
+If pre-commit checks fail:
+
+1. **Read the error messages carefully** - they usually explain what's wrong
+2. **Fix the issues manually** or let the tools auto-fix them
+3. **Re-run the checks** to verify fixes
+4. **Repeat until all checks pass**
+
+Common failures and fixes:
+
+- **Trailing whitespace**: Auto-fixed by pre-commit
+- **End of file issues**: Auto-fixed by pre-commit
+- **SwiftLint errors**: Fix manually according to Swift style guidelines
+- **SwiftFormat issues**: Usually auto-fixed, review changes
+
+### Example Workflow
+
+```bash
+# 1. Make your code changes
+# 2. Stage your changes
+git add .
+
+# 3. Run pre-commit checks
+pre-commit run --all-files
+
+# 4. If checks pass, commit
+git commit -m "feat: Add new feature"
+
+# 5. If checks fail, fix issues and repeat
+# (pre-commit will show you what needs fixing)
+```
+
+### Skipping Pre-commit (DISCOURAGED)
+
+In rare cases where you need to skip pre-commit hooks:
+
+```bash
+git commit --no-verify -m "message"
+```
+
+**⚠️ WARNING**: Only skip pre-commit checks if you have a very good reason and plan to fix issues immediately after.
+
 ## Pull Request Guidelines
 
 ### Before Submitting
-1. Build and run the app to verify it works
-2. Test all modified functionality manually
-3. Check Console.app for any errors or warnings
-4. Ensure code follows style guidelines
-5. Update documentation if needed
+
+1. **Run pre-commit checks**: `pre-commit run --all-files` (MUST pass)
+2. Build and run the app to verify it works
+3. Test all modified functionality manually
+4. Check Console.app for any errors or warnings
+5. Ensure code follows style guidelines
+6. Update documentation if needed
 
 ### Commit Message Format
-```
+
+```text
 <type>: <subject>
 
 <body>
@@ -428,7 +573,8 @@ When modifying features:
 **Types**: feat, fix, docs, style, refactor, test, chore
 
 **Example**:
-```
+
+```text
 feat: Add sound alerts for new incidents
 
 - Implement AVFoundation integration
@@ -440,10 +586,13 @@ Closes #42
 ```
 
 ### PR Title Format
-```
+
+```text
 [Component] Brief description
 ```
+
 Examples:
+
 - `[Settings] Add refresh interval configuration`
 - `[API] Fix rate limiting error handling`
 - `[UI] Improve incident list layout`
@@ -452,19 +601,23 @@ Examples:
 ## Debugging Tips
 
 ### Xcode Breakpoints
+
 - Set breakpoints in `OnCallService.swift` to inspect API responses
 - Use `po` command to print object details in debugger
 - Check `alertSummary` state in `StatusBarController`
 
 ### Common Issues
+
 - **Icon not updating**: Check Combine subscription in `StatusBarController`
 - **API errors**: Verify token in Keychain, check network
 - **UI not refreshing**: Ensure updates on main thread
 - **Popover issues**: Check `NSPopover` configuration
 - **Layout recursion warning**: Harmless SwiftUI/AppKit integration warning, no impact on functionality
-- **SettingsLink availability**: Use conditional `#available(macOS 14.0, *)` check for SettingsLink, fallback for macOS 13.0
+- **SettingsLink availability**: Use conditional `#available(macOS 14.0, *)` check for SettingsLink,
+  fallback for macOS 13.0
 
 ### Console Commands
+
 ```bash
 # View Keychain entry
 security find-generic-password -s com.oncall.notify -w
@@ -479,6 +632,7 @@ log show --predicate 'process == "OnCallNotify"' --last 5m
 ## Performance Considerations
 
 ### Optimization Goals
+
 - Memory usage: <30 MB
 - CPU idle: <1%
 - CPU during refresh: <5%
@@ -486,6 +640,7 @@ log show --predicate 'process == "OnCallNotify"' --last 5m
 - Startup time: <1 second
 
 ### Best Practices
+
 - Cache user ID after first fetch (don't refetch every time)
 - Use pagination limits (100 items max)
 - Process data on background thread
@@ -496,6 +651,7 @@ log show --predicate 'process == "OnCallNotify"' --last 5m
 ## Known Limitations
 
 Current constraints to be aware of:
+
 - Read-only access (cannot acknowledge/resolve incidents from app)
 - Single service support (PagerDuty only, multi-service coming)
 - Single account per service
@@ -507,17 +663,20 @@ Current constraints to be aware of:
 ## Future Enhancements Roadmap
 
 ### Phase 1 (Current - PagerDuty)
+
 - [x] PagerDuty integration
 - [x] Basic alert monitoring
 - [x] On-call status display
 
 ### Phase 2 (Near Term)
+
 1. Desktop notifications for new incidents
 2. Customizable refresh interval in Settings
 3. Incident acknowledgment from app
 4. Sound alerts
 
 ### Phase 3 (Multi-Service)
+
 1. Service abstraction layer
 2. Atlassian Compass integration
 3. Atlassian Jira Service Management integration
@@ -526,6 +685,7 @@ Current constraints to be aware of:
 6. Per-service configuration
 
 ### Phase 4 (Advanced)
+
 1. Multiple account support across services
 2. Alertmanager integration
 3. Custom webhook support
@@ -540,7 +700,9 @@ Current constraints to be aware of:
 When implementing multi-service support:
 
 ### Service Protocol
+
 Consider defining a protocol for service implementations:
+
 ```swift
 protocol OnCallServiceProtocol {
     func fetchIncidents() async throws -> [Incident]
@@ -550,16 +712,19 @@ protocol OnCallServiceProtocol {
 ```
 
 ### Service Registry
+
 - Use a factory pattern or service registry
 - Allow runtime switching between services
 - Maintain separate state per service if supporting multiple accounts
 
 ### Configuration Management
+
 - Store service selection in UserDefaults
 - Store credentials separately per service in Keychain
 - Use service-specific account identifiers like `pagerduty-api-token`, `atlassian-compass-api-token`, `jira-service-mgmt-api-token`
 
 ### UI Considerations
+
 - Add service selection dropdown in Settings
 - Show service-specific instructions
 - Display service name in menu popover
@@ -595,6 +760,7 @@ protocol OnCallServiceProtocol {
 ### Security Implementation Priority
 
 **🔴 CRITICAL (Do First - 9 hours):**
+
 1. Fix API token exposure in SettingsView
 2. Implement secure API request logging  
 3. Enable App Sandbox with entitlements
@@ -609,14 +775,14 @@ protocol OnCallServiceProtocol {
 
 ## Contact and Resources
 
-- **Repository**: https://github.com/unicornops/oncall-notify
+- **Repository**: [github.com/unicornops/oncall-notify](https://github.com/unicornops/oncall-notify)
 - **Security Issues**: Use GitHub Security Advisories (private reporting)
-- **PagerDuty API Docs**: https://developer.pagerduty.com/docs/rest-api-v2/
-- **Swift Language Guide**: https://docs.swift.org/swift-book/
-- **SwiftUI Tutorials**: https://developer.apple.com/tutorials/swiftui
-- **macOS HIG**: https://developer.apple.com/design/human-interface-guidelines/macos
-- **Apple Security Framework**: https://developer.apple.com/documentation/security
-- **App Sandbox Guide**: https://developer.apple.com/library/archive/documentation/Security/Conceptual/AppSandboxDesignGuide/
+- **PagerDuty API Docs**: <https://developer.pagerduty.com/docs/rest-api-v2/>
+- **Swift Language Guide**: <https://docs.swift.org/swift-book/>
+- **SwiftUI Tutorials**: <https://developer.apple.com/tutorials/swiftui>
+- **macOS HIG**: <https://developer.apple.com/design/human-interface-guidelines/macos>
+- **Apple Security Framework**: <https://developer.apple.com/documentation/security>
+- **App Sandbox Guide**: <https://developer.apple.com/library/archive/documentation/Security/Conceptual/AppSandboxDesignGuide/>
 
 ---
 

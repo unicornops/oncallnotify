@@ -49,9 +49,12 @@ struct SettingsView: View {
                                 }
                         }
 
-                        Text("Create an API token in your PagerDuty account under User Settings → API Access Keys. Future versions will support additional on-call services.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                        Text(
+                            "Create an API token in your PagerDuty account under User Settings → " +
+                            "API Access Keys. Future versions will support additional on-call services."
+                        )
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                     }
                     .padding(.vertical, 8)
                 } header: {

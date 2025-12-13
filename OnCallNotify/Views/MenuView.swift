@@ -81,11 +81,14 @@ struct MenuView: View {
 
             Spacer()
 
-            Button(action: {
-                service.refreshData()
-            }) {
-                Image(systemName: "arrow.clockwise")
-            }
+            Button(
+                action: {
+                    service.refreshData()
+                },
+                label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+            )
             .buttonStyle(.plain)
             .help("Refresh")
         }
@@ -263,13 +266,13 @@ struct MenuView: View {
     // Note: Currently supports PagerDuty, future versions will support additional services
 
     private func openSettings() {
-        // For macOS 13.x compatibility
-        if #available(macOS 14.0, *) {
-            // SettingsLink handles this automatically on macOS 14+
-        } else {
+        // For macOS 13.0+ use modern API, fallback to legacy for macOS 12 and earlier
+        if #available(macOS 13.0, *) {
             NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-            NSApp.activate(ignoringOtherApps: true)
+        } else {
+            NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
         }
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     private func quitApp() {
@@ -320,12 +323,15 @@ struct IncidentRowView: View {
                 // Open button
                 if let urlString = incident.htmlUrl,
                    let url = URL(string: urlString) {
-                    Button(action: {
-                        NSWorkspace.shared.open(url)
-                    }) {
-                        Image(systemName: "arrow.up.right.square")
-                            .font(.caption)
-                    }
+                    Button(
+                        action: {
+                            NSWorkspace.shared.open(url)
+                        },
+                        label: {
+                            Image(systemName: "arrow.up.right.square")
+                                .font(.caption)
+                        }
+                    )
                     .buttonStyle(.plain)
                 }
             }
