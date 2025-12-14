@@ -23,5 +23,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusBarController = StatusBarController()
+
+        // Request notification permission
+        Task {
+            await NotificationService.shared.requestPermission()
+        }
     }
 }
