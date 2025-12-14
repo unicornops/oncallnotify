@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.11.0 - 2025-12-14
+#### Features
+- Add DMG customization script with larger icons - (97e900b) - copilot-swe-agent[bot]
+
+- - -
+
 ## v0.10.0 - 2025-12-14
 #### Features
 - Enable code signing for all branch pushes (dev builds) - (9a3cdf2) - copilot-swe-agent[bot]
