@@ -393,18 +393,8 @@ jobs:
 
           echo "Creating DMG..."
 
-          # Create a temporary directory for DMG contents
-          mkdir -p dmg_contents
-          cp -r "$APP_PATH" dmg_contents/
-
-          # Create DMG
-          hdiutil create -volname "OnCall Notify" \
-            -srcfolder dmg_contents \
-            -ov -format UDZO \
-            OnCallNotify.dmg
-
-          # Clean up temporary directory
-          rm -rf dmg_contents
+          # Use the custom DMG creation script
+          ./create-dmg.sh "$APP_PATH" "OnCallNotify.dmg" "OnCall Notify"
 
           echo "✅ DMG created successfully"
 

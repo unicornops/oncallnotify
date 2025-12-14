@@ -258,21 +258,10 @@ jobs:
           APP_PATH="${{ steps.find-app.outputs.app_path }}"
           VERSION="${{ steps.version.outputs.version }}"
           DMG_NAME="OnCallNotify-${VERSION}.dmg"
-          TEMP_DMG="temp.dmg"
           VOLUME_NAME="OnCall Notify ${VERSION}"
 
-          # Create a temporary directory for DMG contents
-          mkdir -p dmg-staging
-          cp -r "$APP_PATH" dmg-staging/
-
-          # Create a symbolic link to Applications folder
-          ln -s /Applications dmg-staging/Applications
-
-          # Create the DMG
-          hdiutil create -volname "$VOLUME_NAME" \
-            -srcfolder dmg-staging \
-            -ov -format UDZO \
-            "$DMG_NAME"
+          # Use the custom DMG creation script
+          ./create-dmg.sh "$APP_PATH" "$DMG_NAME" "$VOLUME_NAME"
 
           # Verify DMG was created
           if [ -f "$DMG_NAME" ]; then
