@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.12.0 - 2025-12-14
+#### Features
+- Ack alerts - (216780e) - Rob Lazzurs
+
+- - -
+
 ## v0.11.0 - 2025-12-14
 #### Features
 - Add DMG customization script with larger icons - (97e900b) - copilot-swe-agent[bot]
