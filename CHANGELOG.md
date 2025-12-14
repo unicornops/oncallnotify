@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.9.0 - 2025-12-14
+#### Features
+- Add comprehensive pre-commit configuration - (6ee7bf6) - copilot-swe-agent[bot]
+
+- - -
+
 ## v0.8.0 - 2025-12-13
 #### Features
 - Fetch future on-call schedules to display next shift start time - (dcd1ebc) - copilot-swe-agent[bot]
