@@ -1,0 +1,180 @@
+# SwiftLint Configuration for OnCall Notify
+# Based on project coding standards from AGENTS.md
+
+# Include all Swift files in the project
+included:
+  - OnCallNotify
+
+# Exclude build artifacts and dependencies
+excluded:
+  - build
+  - DerivedData
+  - .build
+  - Carthage
+  - Pods
+  - xcuserdata
+
+# Disable rules that conflict with project style or are too strict
+disabled_rules:
+  - todo # Allow TODO comments during development
+  - type_body_length # Allow larger view models and services
+  - cyclomatic_complexity # Can be too strict for SwiftUI views
+
+# Opt-in rules to enable
+opt_in_rules:
+  - empty_count # Use isEmpty instead of count == 0
+  - empty_string # Use isEmpty instead of string == ""
+  - explicit_init # Prefer .init() over explicit type
+  - first_where # Use .first(where:) instead of .filter().first
+  - sorted_first_last # Use min() or max() instead of sorted().first
+  - contains_over_filter_count # Use contains instead of filter().count
+  - contains_over_filter_is_empty # Use contains instead of filter().isEmpty
+  - last_where # Use .last(where:) instead of .filter().last
+  - closure_spacing # Enforce spacing in closures
+  - multiline_parameters # Enforce parameter alignment
+  - trailing_closure # Prefer trailing closure syntax
+  - unneeded_parentheses_in_closure_argument # Remove unnecessary parentheses
+  - vertical_whitespace_closing_braces # No empty lines before closing braces
+  - vertical_whitespace_opening_braces # No empty lines after opening braces
+  - force_unwrapping # Warn about force unwrapping
+  - implicitly_unwrapped_optional # Warn about implicitly unwrapped optionals
+
+# Rule configurations
+line_length:
+  warning: 120 # Warning at 120 characters (per AGENTS.md)
+  error: 150 # Hard error at 150
+  ignores_function_declarations: true
+  ignores_comments: true
+  ignores_urls: true
+
+identifier_name:
+  min_length:
+    warning: 2
+    error: 1
+  max_length:
+    warning: 50
+    error: 60
+  excluded:
+    - id
+    - url
+    - URL
+    - db
+    - ok
+    - to
+    - at
+    - by
+
+type_name:
+  min_length: 3
+  max_length:
+    warning: 40
+    error: 50
+
+function_parameter_count:
+  warning: 5
+  error: 8
+
+large_tuple:
+  warning: 3
+  error: 4
+
+nesting:
+  type_level:
+    warning: 2
+
+# Force unwrap is discouraged but not an error (checked in CI)
+force_unwrapping:
+  severity: warning
+
+# Force try is strongly discouraged
+force_try:
+  severity: error
+
+# Force cast is strongly discouraged
+force_cast:
+  severity: error
+
+# Implicitly unwrapped optionals should be avoided
+implicitly_unwrapped_optional:
+  severity: warning
+  mode: all_except_iboutlets
+
+# Trailing whitespace is not allowed
+trailing_whitespace:
+  ignores_empty_lines: false
+  ignores_comments: false
+
+# Require spaces around operators
+function_name_whitespace:
+  severity: warning
+
+# Control statement (if, guard, while, etc.) should not wrap their conditionals in parentheses
+control_statement:
+  severity: warning
+
+# Prefer shorthand operators (+=, -=, etc.)
+shorthand_operator:
+  severity: warning
+
+# Use of legacy constructor methods should be avoided
+legacy_constructor:
+  severity: warning
+
+# Discourage usage of legacy constant names
+legacy_constant:
+  severity: warning
+
+# Colon should be next to identifier when specifying a type
+colon:
+  flexible_right_spacing: false
+  apply_to_dictionaries: true
+
+# Opening braces should be preceded by a single space and on the same line
+opening_brace:
+  severity: warning
+
+# Prefer () -> Void over () -> () for closure types
+void_return:
+  severity: warning
+
+# Return arrow and return type should be separated by a single space
+return_arrow_whitespace:
+  severity: warning
+
+# Files should have at least 1 line of code (not just comments)
+file_length:
+  warning: 500
+  error: 1000
+  ignore_comment_only_lines: true
+
+# SwiftUI-specific considerations
+# Allow longer function bodies for SwiftUI views
+function_body_length:
+  warning: 60
+  error: 100
+
+# Custom rules for OnCall Notify project
+custom_rules:
+  # Ensure secure API token handling
+  no_print_api_token:
+    name: "No Printing API Tokens"
+    regex: "print.*token|NSLog.*token"
+    message: "Do not print API tokens to console"
+    severity: error
+
+  # Enforce consistent error handling
+  no_empty_catch:
+    name: "No Empty Catch Blocks"
+    regex: 'catch\s*\{\s*\}'
+    message: "Empty catch blocks should handle or at least log errors"
+    severity: warning
+
+  # Prefer @MainActor over DispatchQueue.main.async for UI updates
+  prefer_main_actor:
+    name: "Prefer @MainActor"
+    regex: 'DispatchQueue\.main\.async\s*\{'
+    message: "Consider using @MainActor instead of DispatchQueue.main.async for cleaner code"
+    severity: warning
+
+# Reporter type
+reporter: "xcode" # Use Xcode-style reporting for better IDE integration

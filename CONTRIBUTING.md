@@ -1,6 +1,7 @@
 # Contributing to OnCall Notify
 
-Thank you for your interest in contributing to OnCall Notify! This document provides guidelines and instructions for contributing to the project.
+Thank you for your interest in contributing to OnCall Notify! This document provides guidelines and
+instructions for contributing to the project.
 
 ## Code of Conduct
 
@@ -48,21 +49,33 @@ Enhancement suggestions are welcome! Please include:
 - Xcode 15.0 or later
 - Git
 - A PagerDuty account for testing
+- (Recommended) pre-commit: `pip install pre-commit` or `brew install pre-commit`
+- (Recommended) SwiftLint: `brew install swiftlint`
 
 ### Getting Started
 
 1. Fork and clone the repository:
+
    ```bash
    git clone https://github.com/YOUR_USERNAME/oncall-notify.git
    cd oncall-notify
    ```
 
-2. Open the project in Xcode:
+2. Set up pre-commit hooks (recommended):
+
+   ```bash
+   pre-commit install
+   ```
+
+   This will automatically check your code before each commit. See [.pre-commit/README.md](.pre-commit/README.md) for details.
+
+3. Open the project in Xcode:
+
    ```bash
    open OnCallNotify.xcodeproj
    ```
 
-3. Build and run:
+4. Build and run:
    - Press `⌘R` in Xcode
    - Or use the build script: `./build.sh Debug`
 
@@ -75,10 +88,11 @@ We follow the [Swift API Design Guidelines](https://swift.org/documentation/api-
 Key points:
 
 - **Naming**: Use clear, descriptive names
+
   ```swift
   // Good
   func fetchIncidents() async throws -> [Incident]
-  
+
   // Bad
   func getStuff() -> [Any]
   ```
@@ -97,7 +111,7 @@ Key points:
 
 ### Code Organization
 
-```
+```text
 OnCallNotify/
 ├── Models/           # Data models and types
 ├── Services/         # Business logic and API clients
@@ -186,7 +200,7 @@ If your change affects user-facing features:
 
 Follow this format:
 
-```
+```text
 <type>: <subject>
 
 <body>
@@ -195,6 +209,7 @@ Follow this format:
 ```
 
 **Types**:
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation changes
@@ -204,7 +219,8 @@ Follow this format:
 - `chore`: Maintenance tasks
 
 **Example**:
-```
+
+```text
 feat: Add desktop notifications for new incidents
 
 - Implement NSUserNotification integration
@@ -217,7 +233,16 @@ Closes #42
 
 ## Pull Request Process
 
-1. **Update your fork**:
+1. **Ensure pre-commit hooks pass**:
+
+   ```bash
+   pre-commit run --all-files
+   ```
+
+   Fix any issues before pushing.
+
+2. **Update your fork**:
+
    ```bash
    git checkout main
    git pull upstream main
@@ -225,22 +250,29 @@ Closes #42
    git rebase main
    ```
 
-2. **Push your changes**:
+3. **Push your changes**:
+
    ```bash
    git push origin your-feature-branch
    ```
 
-3. **Create pull request** on GitHub
+4. **Create pull request** on GitHub
 
-4. **Fill out the PR template** with:
+5. **Fill out the PR template** with:
    - Description of changes
    - Related issue(s)
    - Testing performed
    - Screenshots (if UI changes)
 
-5. **Address review feedback**
+6. **Verify CI checks pass**:
+   - Pre-commit hooks validation
+   - Swift syntax check
+   - Build verification
+   - Static analysis
 
-6. **Wait for approval** and merge
+7. **Address review feedback**
+
+8. **Wait for approval** and merge
 
 ## Version Numbering
 

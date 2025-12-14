@@ -124,5 +124,8 @@ Temporary Items
 *.swo
 *~
 
+# Pre-commit
+.pre-commit-cache/
+
 # App specific
 *.log

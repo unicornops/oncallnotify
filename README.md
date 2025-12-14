@@ -10,7 +10,8 @@ A native macOS status bar application for monitoring your on-call alerts and sta
 
 ## Overview
 
-OnCall Notify is your unified on-call status monitor for macOS. Currently supporting **PagerDuty** with plans to add support for additional on-call and incident management platforms in future releases.
+OnCall Notify is your unified on-call status monitor for macOS. Currently supporting **PagerDuty** with
+plans to add support for additional on-call and incident management platforms in future releases.
 
 ## Features
 
@@ -27,21 +28,26 @@ OnCall Notify is your unified on-call status monitor for macOS. Currently suppor
 ## Supported Services
 
 ### Currently Supported
+
 - ✅ **PagerDuty** - Full support for incidents and on-call schedules
 
 ### Coming Soon
+
 - 🚧 **Atlassian Compass** - Planned
 - 🚧 **Atlassian Jira Service Management** - Planned
 - 🚧 **VictorOps/Splunk On-Call** - Planned
 - 🚧 **Alertmanager** - Planned
 - 🚧 **Custom webhooks** - Planned
 
-Want to see support for another service? [Open an issue](https://github.com/unicornops/oncall-notify/issues) and let us know!
+Want to see support for another service?
+[Open an issue](https://github.com/unicornops/oncall-notify/issues) and let us know!
 
 ## Screenshots
 
 ### Status Bar Icon
+
 The app displays a bell icon in your menu bar with:
+
 - Filled bell when on-call
 - Red color for unacknowledged alerts
 - Orange color for acknowledged alerts
@@ -49,7 +55,9 @@ The app displays a bell icon in your menu bar with:
 - Alert count badge
 
 ### Menu Popover
+
 Click the menu bar icon to see:
+
 - Current on-call status
 - Next on-call shift time
 - Alert summary (total, unacknowledged, acknowledged)
@@ -57,7 +65,9 @@ Click the menu bar icon to see:
 - Refresh button for manual updates
 
 ### Settings Window
+
 Configure your service API tokens with:
+
 - Secure token input
 - Test connection functionality
 - Token management (save, load, delete)
@@ -73,12 +83,14 @@ Configure your service API tokens with:
 ### Option 1: Build from Source
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/unicornops/oncall-notify.git
 cd oncall-notify
 ```
 
 2. Open the Xcode project:
+
 ```bash
 open OnCallNotify.xcodeproj
 ```
@@ -123,10 +135,10 @@ The app will now automatically fetch and display your alerts and on-call status.
 
 The icon in your menu bar provides at-a-glance information:
 
-- **Bell Icon**: 
+- **Bell Icon**:
   - Outline: Not currently on-call
   - Filled: Currently on-call
-  
+
 - **Icon Color**:
   - Red: Unacknowledged alerts present
   - Orange: Only acknowledged alerts
@@ -155,6 +167,7 @@ Click the menu bar icon to see detailed information:
 ## API Integration
 
 ### PagerDuty
+
 The application uses the following PagerDuty API v2 endpoints:
 
 - `GET /users/me` - Get current user information
@@ -174,13 +187,16 @@ The application uses the following PagerDuty API v2 endpoints:
 
 ### Security Audit & Improvements
 
-A comprehensive security audit has been completed (December 2024). The application has a **current security rating of 6.5/10** with a target of 9.0/10 after implementing recommended improvements.
+A comprehensive security audit has been completed (December 2024). The application has a **current security
+rating of 6.5/10** with a target of 9.0/10 after implementing recommended improvements.
 
 **📋 For complete security details, see:**
+
 - **[SECURITY.md](SECURITY.md)** - Full security audit report with implementation checklist
 - **[SECURITY_QUICKREF.md](SECURITY_QUICKREF.md)** - Quick reference guide for developers
 
 **Critical improvements in progress:**
+
 - 🔄 Enhanced API token handling in UI
 - 🔄 App Sandbox implementation
 - 🔄 Certificate pinning for API endpoints
@@ -190,9 +206,10 @@ A comprehensive security audit has been completed (December 2024). The applicati
 ### Reporting Security Issues
 
 If you discover a security vulnerability, please report it responsibly:
+
 - **DO NOT** open a public GitHub issue
 - Use GitHub Security Advisories for private reporting
-- Or email: security@oncall.notify (coming soon)
+- Or email: <security@oncall.notify> (coming soon)
 
 We take security seriously and will respond promptly to all reports.
 
@@ -228,7 +245,7 @@ We take security seriously and will respond promptly to all reports.
 
 ### Project Structure
 
-```
+```text
 OnCallNotify/
 ├── OnCallNotifyApp.swift      # App entry point
 ├── StatusBarController.swift   # Menu bar icon and popover controller
@@ -266,10 +283,33 @@ xcodebuild -project OnCallNotify.xcodeproj -scheme OnCallNotify -configuration R
 # Use the build script
 ./build.sh           # Builds Release by default
 ./build.sh Debug     # Builds Debug configuration
-
-# Run tests (when available)
-xcodebuild test -project OnCallNotify.xcodeproj -scheme OnCallNotify
 ```
+
+### Code Quality and Pre-commit Hooks
+
+This project uses pre-commit hooks to maintain code quality:
+
+```bash
+# Install pre-commit (one-time)
+pip install pre-commit
+# or
+brew install pre-commit
+
+# Set up the hooks
+pre-commit install
+
+# Run manually
+pre-commit run --all-files
+```
+
+**What gets checked:**
+
+- File quality (whitespace, EOF newlines)
+- Swift syntax and linting (SwiftLint)
+- YAML/JSON/XML validation
+- Markdown formatting
+- Secret detection
+- Shell script validation
 
 ### Contributing
 
@@ -284,17 +324,21 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 #### Adding Support for New Services
 
-We welcome contributions to add support for additional on-call and incident management platforms! The codebase is designed with extensibility in mind. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on adding new service integrations.
+We welcome contributions to add support for additional on-call and incident management platforms! The
+codebase is designed with extensibility in mind. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on
+adding new service integrations.
 
 ## Roadmap
 
 ### Near Term
+
 - [ ] Customizable refresh interval
 - [ ] Desktop notifications for new incidents
 - [ ] Incident acknowledgment from the app
 - [ ] Dark mode optimizations
 
 ### Future Services
+
 - [ ] Atlassian Compass integration
 - [ ] Atlassian Jira Service Management integration
 - [ ] VictorOps/Splunk On-Call integration
@@ -303,6 +347,7 @@ We welcome contributions to add support for additional on-call and incident mana
 - [ ] Custom webhook support
 
 ### Advanced Features
+
 - [ ] Customizable alert filtering
 - [ ] Historical incident view
 - [ ] Export incident data
@@ -346,6 +391,7 @@ If you encounter any issues or have questions:
 ## Privacy
 
 This application:
+
 - Only communicates with official APIs of configured services
 - Does not collect or transmit any user data to third parties
 - Stores API tokens locally in macOS Keychain

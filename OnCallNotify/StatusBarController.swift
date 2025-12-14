@@ -39,8 +39,8 @@ class PopoverHostingController: NSViewController {
 
 @MainActor
 class StatusBarController: ObservableObject {
-    private var statusItem: NSStatusItem!
-    private var popover: NSPopover!
+    private var statusItem: NSStatusItem?
+    private var popover: NSPopover?
     private var cancellables = Set<AnyCancellable>()
 
     init() {
@@ -54,7 +54,7 @@ class StatusBarController: ObservableObject {
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
-        if let button = statusItem.button {
+        if let button = statusItem?.button {
             updateStatusBarButton()
             button.action = #selector(togglePopover)
             button.target = self
@@ -63,12 +63,12 @@ class StatusBarController: ObservableObject {
 
     private func setupPopover() {
         popover = NSPopover()
-        popover.behavior = .transient
-        popover.animates = false
+        popover?.behavior = .transient
+        popover?.animates = false
 
         // Create the view controller once during setup
         let menuViewController = PopoverHostingController(rootView: MenuView())
-        popover.contentViewController = menuViewController
+        popover?.contentViewController = menuViewController
     }
 
     private func observeAlertChanges() {
@@ -82,7 +82,7 @@ class StatusBarController: ObservableObject {
     // MARK: - Update Status Bar
 
     private func updateStatusBarButton() {
-        guard let button = statusItem.button else { return }
+        guard let button = statusItem?.button else { return }
 
         let summary = OnCallService.shared.alertSummary
 
@@ -94,9 +94,15 @@ class StatusBarController: ObservableObject {
         let iconImage: NSImage
 
         if summary.isOnCall {
-            iconImage = NSImage(systemSymbolName: "bell.fill", accessibilityDescription: "On Call")!
+            guard let image = NSImage(systemSymbolName: "bell.fill", accessibilityDescription: "On Call") else {
+                return
+            }
+            iconImage = image
         } else {
-            iconImage = NSImage(systemSymbolName: "bell", accessibilityDescription: "Not On Call")!
+            guard let image = NSImage(systemSymbolName: "bell", accessibilityDescription: "Not On Call") else {
+                return
+            }
+            iconImage = image
         }
 
         // Set icon color based on alert status
@@ -156,15 +162,17 @@ class StatusBarController: ObservableObject {
     // MARK: - Popover Actions
 
     @objc private func togglePopover() {
-        if let button = statusItem.button {
-            if popover.isShown {
-                popover.performClose(nil)
-            } else {
-                popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        guard let button = statusItem?.button, let popover = popover else {
+            return
+        }
 
-                // Refresh data when opening
-                OnCallService.shared.refreshData()
-            }
+        if popover.isShown {
+            popover.performClose(nil)
+        } else {
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+
+            // Refresh data when opening
+            OnCallService.shared.refreshData()
         }
     }
 }
