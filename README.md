@@ -33,7 +33,6 @@ plans to add support for additional on-call and incident management platforms in
 - ✅ **PagerDuty** - Full support for incidents and on-call schedules
 
 ### Coming Soon
-
 - 🚧 **Atlassian Compass** - Planned
 - 🚧 **Atlassian Jira Service Management** - Planned
 - 🚧 **VictorOps/Splunk On-Call** - Planned
@@ -340,7 +339,6 @@ adding new service integrations.
 - [ ] Dark mode optimizations
 
 ### Future Services
-
 - [ ] Atlassian Compass integration
 - [ ] Atlassian Jira Service Management integration
 - [ ] VictorOps/Splunk On-Call integration
