@@ -79,9 +79,9 @@ jobs:
 
           echo "✅ Icon files verification complete"
 
-      # Only sign on main branch pushes (not PRs, even to main)
+      # Sign all branch pushes and manual builds (not PRs, to avoid requiring secrets for external contributors)
       - name: Setup code signing
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: github.event_name != 'pull_request'
         env:
           CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -194,7 +194,7 @@ jobs:
           echo "✅ Code signing certificate installed"
 
       - name: Build (Debug)
-        if: github.event_name == 'pull_request' || github.ref != 'refs/heads/main'
+        if: github.event_name == 'pull_request'
         run: |
           xcodebuild \
             -project OnCallNotify.xcodeproj \
@@ -205,7 +205,7 @@ jobs:
             build
 
       - name: Build (Release - Unsigned)
-        if: github.event_name == 'pull_request' || github.ref != 'refs/heads/main'
+        if: github.event_name == 'pull_request'
         run: |
           xcodebuild \
             -project OnCallNotify.xcodeproj \
@@ -216,7 +216,7 @@ jobs:
             build
 
       - name: Build (Release - Signed)
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: github.event_name != 'pull_request'
         run: |
           echo "Building with Developer ID Application certificate for team: $CERT_TEAM_ID"
 
@@ -253,7 +253,7 @@ jobs:
           echo "Found app at: $APP_PATH"
 
       - name: Verify code signature
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: github.event_name != 'pull_request'
         run: |
           APP_PATH="${{ steps.find-app.outputs.app_path }}"
 
@@ -322,7 +322,7 @@ jobs:
           echo "✓ All 7 icon source files present"
 
       - name: Notarize app
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: github.event_name != 'pull_request'
         env:
           APPLE_ID: ${{ secrets.APPLE_DEVELOPER_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
@@ -383,7 +383,7 @@ jobs:
           rm OnCallNotify.zip
 
       - name: Create DMG for distribution
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: github.event_name != 'pull_request'
         env:
           APPLE_ID: ${{ secrets.APPLE_DEVELOPER_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
@@ -476,14 +476,14 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: OnCallNotify-${{ github.ref == 'refs/heads/main' && github.event_name == 'push' && 'signed' || 'unsigned' }}-${{ github.sha }}
+          name: OnCallNotify-${{ github.event_name != 'pull_request' && 'signed' || 'unsigned' }}-${{ github.sha }}
           path: |
             artifacts/OnCallNotify.app
             artifacts/OnCallNotify.dmg
           retention-days: 30
 
       - name: Cleanup certificate
-        if: always() && github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: always() && github.event_name != 'pull_request'
         run: |
           echo "Cleaning up temporary keychain..."
           if [ ! -z "$KEYCHAIN_NAME" ]; then
@@ -497,10 +497,10 @@ jobs:
         run: |
           APP_PATH="${{ steps.find-app.outputs.app_path }}"
 
-          if [ "${{ github.ref }}" == "refs/heads/main" ] && [ "${{ github.event_name }}" == "push" ]; then
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
             SIGNED_STATUS="✅ Signed & Notarized"
           else
-            SIGNED_STATUS="⚠️ Unsigned (development build)"
+            SIGNED_STATUS="⚠️ Unsigned (pull request build)"
           fi
 
           echo "## Build Summary :rocket:" >> $GITHUB_STEP_SUMMARY
@@ -519,13 +519,17 @@ jobs:
           echo "- **Build**: $(defaults read "$APP_PATH/Contents/Info.plist" CFBundleVersion)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          if [ "${{ github.ref }}" == "refs/heads/main" ] && [ "${{ github.event_name }}" == "push" ]; then
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
             echo "### 🔐 Security" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "- Code signed with Developer ID" >> $GITHUB_STEP_SUMMARY
             echo "- Notarized by Apple" >> $GITHUB_STEP_SUMMARY
             echo "- DMG created and notarized" >> $GITHUB_STEP_SUMMARY
-            echo "- Ready for distribution" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+              echo "- Ready for production distribution" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- Ready for testing and development" >> $GITHUB_STEP_SUMMARY
+            fi
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### 📦 Distribution" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
