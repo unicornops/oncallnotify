@@ -54,9 +54,9 @@ MD026:
   punctuation: ".,;:!。，；：！"
 
 # MD029/ol-prefix - Ordered list item prefix
-MD029:
-  # List style
-  style: "ordered"
+# Disabled to prevent auto-fix from changing sequential numbers (1, 2, 3, 4) to all 1s
+# Both styles are acceptable - we prefer sequential but don't auto-fix
+MD029: false
 
 # MD030/list-marker-space - Spaces after list markers
 MD030:

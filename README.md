@@ -17,6 +17,7 @@ plans to add support for additional on-call and incident management platforms in
 
 - 🔔 **Real-time Alert Monitoring**: Display current incidents directly in your menu bar
 - 📊 **Alert Categorization**: Separate counts for acknowledged and unacknowledged alerts
+- ✅ **Quick Acknowledge**: Acknowledge unacknowledged incidents with a single click
 - 👤 **On-Call Status**: Visual indicator showing if you're currently on-call
 - 📅 **Next Shift Information**: See when your next on-call shift starts
 - 🔒 **Secure Storage**: API tokens stored securely in macOS Keychain
@@ -62,6 +63,7 @@ Click the menu bar icon to see:
 - Next on-call shift time
 - Alert summary (total, unacknowledged, acknowledged)
 - List of recent incidents with quick links
+- One-click acknowledge button for unacknowledged incidents
 - Refresh button for manual updates
 
 ### Settings Window

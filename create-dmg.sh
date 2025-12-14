@@ -95,27 +95,27 @@ osascript <<EOF
 tell application "Finder"
     tell disk "$VOLUME_NAME"
         open
-        
+
         -- Set window properties
         set current view of container window to icon view
         set toolbar visible of container window to false
         set statusbar visible of container window to false
-        
+
         -- Set window bounds (left, top, right, bottom)
         -- Creates a 600x400 window
         set the bounds of container window to {100, 100, 700, 500}
-        
+
         -- Set icon view options
         set opts to the icon view options of container window
         set icon size of opts to $ICON_SIZE
         set arrangement of opts to not arranged
-        
+
         -- Position icons
         -- OnCallNotify.app on the left
         set position of item "$APP_NAME" to {150, 200}
         -- Applications folder on the right
         set position of item "Applications" to {450, 200}
-        
+
         -- Update and close
         update without registering applications
         delay 2
