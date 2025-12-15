@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.13.0 - 2025-12-15
+#### Features
+- Add notification support for on-call and incident changes - (99b2887) - Rob Lazzurs
+
+- - -
+
 ## v0.12.0 - 2025-12-14
 #### Features
 - Ack alerts - (216780e) - Rob Lazzurs
