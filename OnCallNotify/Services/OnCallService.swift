@@ -30,6 +30,14 @@ class OnCallService: ObservableObject {
     // On-call schedule lookup window (days into the future)
     private let futureScheduleLookupDays: Int = 30
 
+    // Track previous state for change detection
+    private var previousIncidentStatuses: [String: IncidentStatus] = [:]
+    private var previousOnCallStatus: Bool = false
+    private var isFirstFetch: Bool = true
+
+    // Cached ISO8601DateFormatter for performance (DateFormatter initialization is expensive)
+    private static let iso8601Formatter = ISO8601DateFormatter()
+
     private lazy var urlSession: URLSession = {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
@@ -109,11 +117,12 @@ class OnCallService: ObservableObject {
 
             // Log technical details securely
             #if DEBUG
-            if let onCallError = error as? OnCallError {
-                Self.logger.debug("Error: \(onCallError.technicalDescription, privacy: .private)")
-            } else {
-                Self.logger.debug("Error: \(error.localizedDescription, privacy: .private)")
-            }
+                if let onCallError = error as? OnCallError {
+                    Self.logger.debug(
+                        "Error: \(onCallError.technicalDescription, privacy: .private)")
+                } else {
+                    Self.logger.debug("Error: \(error.localizedDescription, privacy: .private)")
+                }
             #endif
         }
         self.isLoading = false
@@ -159,7 +168,7 @@ class OnCallService: ObservableObject {
         }
 
         // Refresh data to get latest from server after a brief delay
-        try? await Task.sleep(nanoseconds: 1_000_000_000) // Wait 1 second
+        try? await Task.sleep(nanoseconds: 1_000_000_000)  // Wait 1 second
         await fetchAllData()
     }
 
@@ -260,16 +269,18 @@ class OnCallService: ObservableObject {
         // Set time range to fetch current and future on-call schedules
         // This allows us to show when the next shift starts
         let now = Date()
-        guard let futureDate = Calendar.current.date(byAdding: .day, value: futureScheduleLookupDays, to: now) else {
+        guard
+            let futureDate = Calendar.current.date(
+                byAdding: .day, value: futureScheduleLookupDays, to: now)
+        else {
             throw OnCallError.apiError(
                 technicalMessage: "Failed to calculate future date",
                 userMessage: "Unable to process schedule data"
             )
         }
 
-        let dateFormatter = ISO8601DateFormatter()
-        let sinceParam = dateFormatter.string(from: now)
-        let untilParam = dateFormatter.string(from: futureDate)
+        let sinceParam = Self.iso8601Formatter.string(from: now)
+        let untilParam = Self.iso8601Formatter.string(from: futureDate)
 
         components.queryItems = [
             URLQueryItem(name: "include[]", value: "users"),
@@ -363,14 +374,12 @@ class OnCallService: ObservableObject {
         var isCurrentlyOnCall = false
         var nextShift: Date?
 
-        let dateFormatter = ISO8601DateFormatter()
-
         for oncall in oncalls {
             // Check if currently on call
             if let startString = oncall.start,
-               let endString = oncall.end,
-               let startDate = dateFormatter.date(from: startString),
-               let endDate = dateFormatter.date(from: endString) {
+                let endString = oncall.end,
+                let startDate = Self.iso8601Formatter.date(from: startString),
+                let endDate = Self.iso8601Formatter.date(from: endString) {
                 // Currently on call
                 if startDate <= now && endDate > now {
                     isCurrentlyOnCall = true
@@ -392,7 +401,71 @@ class OnCallService: ObservableObject {
         summary.isOnCall = isCurrentlyOnCall
         summary.nextOnCallShift = nextShift
 
+        // Detect changes and send notifications (skip on first fetch)
+        if !isFirstFetch {
+            detectAndNotifyChanges(
+                incidents: incidents, isOnCall: isCurrentlyOnCall, nextShift: nextShift)
+        }
+
+        // Update previous state
+        let newIncidentStatuses = Dictionary(uniqueKeysWithValues: incidents.map { ($0.id, $0.status) })
+        previousIncidentStatuses = newIncidentStatuses
+        previousOnCallStatus = isCurrentlyOnCall
+        isFirstFetch = false
+
         self.alertSummary = summary
+    }
+
+    private func detectAndNotifyChanges(incidents: [Incident], isOnCall: Bool, nextShift: Date?) {
+        // Build current incident status map
+        let currentIncidentStatuses = Dictionary(uniqueKeysWithValues: incidents.map { ($0.id, $0.status) })
+        let currentIncidentIds = Set(currentIncidentStatuses.keys)
+        let previousIncidentIds = Set(previousIncidentStatuses.keys)
+
+        // Detect new incidents and status transitions
+        for incident in incidents {
+            if let previousStatus = previousIncidentStatuses[incident.id] {
+                // Existing incident - check for status transition
+                if previousStatus != incident.status {
+                    // Status changed
+                    if previousStatus == .triggered && incident.status == .acknowledged {
+                        // Incident was acknowledged
+                        NotificationService.shared.removeIncidentNotification(incidentId: incident.id)
+                        NotificationService.shared.sendIncidentAcknowledgedNotification(incident: incident)
+                    } else if incident.status == .resolved {
+                        // Incident was resolved
+                        NotificationService.shared.sendIncidentResolvedNotification(incident: incident)
+                        NotificationService.shared.removeIncidentNotification(incidentId: incident.id)
+                    }
+                }
+            } else {
+                // New incident (never seen before)
+                if incident.status == .triggered {
+                    NotificationService.shared.sendIncidentNotification(incident: incident)
+                } else if incident.status == .acknowledged {
+                    // Newly discovered incident that's already acknowledged
+                    NotificationService.shared.sendIncidentAcknowledgedNotification(incident: incident)
+                }
+            }
+        }
+
+        // Detect resolved incidents (no longer in current list)
+        let resolvedIncidentIds = previousIncidentIds.subtracting(currentIncidentIds)
+        for incidentId in resolvedIncidentIds {
+            // Remove the notification for resolved incidents
+            NotificationService.shared.removeIncidentNotification(incidentId: incidentId)
+        }
+
+        // Detect on-call status changes
+        if isOnCall != previousOnCallStatus {
+            if isOnCall {
+                // Just went on-call
+                NotificationService.shared.sendOnCallStartNotification(nextShift: nextShift)
+            } else {
+                // Just went off-call
+                NotificationService.shared.sendOnCallEndNotification(nextShift: nextShift)
+            }
+        }
     }
 
     // MARK: - Public Helper Methods
@@ -400,7 +473,7 @@ class OnCallService: ObservableObject {
     func refreshData() {
         // Prevent rapid refresh spam
         if let lastFetch = lastFetchTime,
-           Date().timeIntervalSince(lastFetch) < minimumFetchInterval {
+            Date().timeIntervalSince(lastFetch) < minimumFetchInterval {
             Self.logger.debug("Refresh throttled - minimum interval not met")
             return
         }
@@ -443,7 +516,9 @@ class OnCallService: ObservableObject {
             isBackingOff = true
             let backoffTime = min(pow(2.0, Double(consecutiveErrors - maxRetryCount)) * 30, 300)
 
-            Self.logger.warning("Entering backoff period for \(backoffTime, privacy: .public) seconds after \(self.consecutiveErrors, privacy: .public) consecutive errors")
+            Self.logger.warning(
+                "Entering backoff period for \(backoffTime, privacy: .public) seconds after \(self.consecutiveErrors, privacy: .public) consecutive errors"
+            )
 
             DispatchQueue.main.asyncAfter(deadline: .now() + backoffTime) { [weak self] in
                 guard let self = self else { return }
@@ -460,17 +535,17 @@ class OnCallService: ObservableObject {
 
     private func logSecureRequest(_ url: URL) {
         #if DEBUG
-        Self.logger.debug("API Request: \(url.path, privacy: .public)")
+            Self.logger.debug("API Request: \(url.path, privacy: .public)")
         #else
-        Self.logger.info("API Request initiated")
+            Self.logger.info("API Request initiated")
         #endif
     }
 
     private func logSecureResponse(statusCode: Int, bytes: Int) {
         #if DEBUG
-        Self.logger.debug("API Response: Status \(statusCode), \(bytes) bytes")
+            Self.logger.debug("API Response: Status \(statusCode), \(bytes) bytes")
         #else
-        Self.logger.info("API Response received")
+            Self.logger.info("API Response received")
         #endif
     }
 }
