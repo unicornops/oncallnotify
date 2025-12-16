@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.15.0 - 2025-12-16
+#### Features
+- Add the ability to create manual releases - (1c6eb3e) - Rob Lazzurs
+
+- - -
+
 ## v0.14.1 - 2025-12-16
 #### Bug Fixes
 - Removing specifying the XCode version - (11030ec) - Rob Lazzurs
