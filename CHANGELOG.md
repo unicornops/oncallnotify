@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.14.1 - 2025-12-16
+#### Bug Fixes
+- Removing specifying the XCode version - (11030ec) - Rob Lazzurs
+
+- - -
+
 ## v0.14.0 - 2025-12-16
 #### Features
 - Update github workflows - (f3d4b1b) - Rob Lazzurs
