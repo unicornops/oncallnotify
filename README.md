@@ -4,7 +4,7 @@ A native macOS status bar application for monitoring your on-call alerts and sta
 
 ![macOS](https://img.shields.io/badge/macOS-13.0+-blue.svg)
 ![Swift](https://img.shields.io/badge/Swift-5.0-orange.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
+![License](https://img.shields.io/badge/license-GPLv3-blue.svg)
 [![Build](https://github.com/unicornops/oncall-notify/actions/workflows/build.yml/badge.svg)](https://github.com/unicornops/oncall-notify/actions/workflows/build.yml)
 [![CI](https://github.com/unicornops/oncall-notify/actions/workflows/ci.yml/badge.svg)](https://github.com/unicornops/oncall-notify/actions/workflows/ci.yml)
 
@@ -358,7 +358,7 @@ adding new service integrations.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the GNU General Public License v3.0 - see the LICENSE file for details.
 
 ## Acknowledgments
 
