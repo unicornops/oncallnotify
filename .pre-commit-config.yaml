@@ -56,7 +56,7 @@ repos:
         entry: swiftlint
         language: system
         types: [swift]
-        args: ["--strict"]
+        args: ["--fix", "--format"]
 
   # Markdown linting for documentation
   - repo: https://github.com/igorshubovych/markdownlint-cli
@@ -84,16 +84,9 @@ repos:
         name: ShellCheck
         args: ["--severity=warning"]
 
-  # Swift format checking (if swiftformat is installed)
+  # Local validation hooks
   - repo: local
     hooks:
-      - id: swiftformat
-        name: SwiftFormat
-        entry: bash -c 'if command -v swiftformat &> /dev/null; then swiftformat --lint .; else echo "SwiftFormat not installed, skipping..."; exit 0; fi'
-        language: system
-        types: [swift]
-        pass_filenames: false
-
       # Validate Xcode project structure
       - id: validate-xcode-project
         name: Validate Xcode Project

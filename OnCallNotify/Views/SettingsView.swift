@@ -25,7 +25,7 @@ struct SettingsView: View {
                         Text("API Token (PagerDuty)")
                             .font(.headline)
 
-                        if hasStoredToken && !isEditingToken {
+                        if hasStoredToken, !isEditingToken {
                             HStack {
                                 Text("••••••••••••••••")
                                     .foregroundColor(.secondary)
@@ -51,7 +51,7 @@ struct SettingsView: View {
 
                         Text(
                             "Create an API token in your PagerDuty account under User Settings → " +
-                            "API Access Keys. Future versions will support additional on-call services."
+                                "API Access Keys. Future versions will support additional on-call services."
                         )
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -250,7 +250,7 @@ struct SettingsView: View {
         }
     }
 
-    private func testConnection() {
+    func testConnection() {
         isTestingConnection = true
         connectionTestResult = nil
 

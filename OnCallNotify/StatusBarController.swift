@@ -6,8 +6,8 @@
 //
 
 import AppKit
-import SwiftUI
 import Combine
+import SwiftUI
 
 // MARK: - Custom Hosting Controller
 
@@ -19,14 +19,15 @@ class PopoverHostingController: NSViewController {
         super.init(nibName: nil, bundle: nil)
     }
 
-    required init?(coder: NSCoder) {
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
     override func loadView() {
         let hostingView = NSHostingView(rootView: rootView)
         hostingView.translatesAutoresizingMaskIntoConstraints = false
-        self.view = hostingView
+        view = hostingView
     }
 
     override func viewDidLoad() {
@@ -106,15 +107,14 @@ class StatusBarController: ObservableObject {
         }
 
         // Set icon color based on alert status
-        let iconColor: NSColor
-        if summary.unacknowledgedCount > 0 {
-            iconColor = .systemRed
+        let iconColor: NSColor = if summary.unacknowledgedCount > 0 {
+            .systemRed
         } else if summary.acknowledgedCount > 0 {
-            iconColor = .systemOrange
+            .systemOrange
         } else if summary.isOnCall {
-            iconColor = .systemBlue
+            .systemBlue
         } else {
-            iconColor = .controlTextColor
+            .controlTextColor
         }
 
         iconImage.isTemplate = true
@@ -162,7 +162,7 @@ class StatusBarController: ObservableObject {
     // MARK: - Popover Actions
 
     @objc private func togglePopover() {
-        guard let button = statusItem?.button, let popover = popover else {
+        guard let button = statusItem?.button, let popover else {
             return
         }
 

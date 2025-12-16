@@ -21,7 +21,7 @@ struct OnCallNotifyApp: App {
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusBarController: StatusBarController?
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
+    func applicationDidFinishLaunching(_: Notification) {
         statusBarController = StatusBarController()
 
         // Request notification permission

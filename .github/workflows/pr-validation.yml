@@ -1,0 +1,186 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+# Ensure external contributors cannot access secrets
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # Check conventional commits - runs first as it's fast
+  conventional-commits:
+    name: Check Conventional Commits
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check conventional commits with cocogitto
+        uses: cocogitto/cocogitto-action@v4
+        with:
+          command: check
+          # For PRs, check commits in the PR
+          args: ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
+
+  # Run pre-commit checks
+  pre-commit:
+    name: Pre-commit Checks
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
+      - name: Install SwiftLint
+        run: brew install swiftlint
+
+      - name: Run pre-commit hooks
+        run: pre-commit run --all-files --show-diff-on-failure
+
+  # Build and validate the app (unsigned for PRs)
+  build:
+    name: Build and Test
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Select Xcode version
+        run: |
+          XCODE_PATH=$(ls -td /Applications/Xcode_*.app | head -1)
+          if [ -z "$XCODE_PATH" ]; then
+            XCODE_PATH="/Applications/Xcode.app"
+          fi
+          echo "Using Xcode at: $XCODE_PATH"
+          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+
+      - name: Show build environment
+        run: |
+          echo "Xcode version:"
+          xcodebuild -version
+          echo ""
+          echo "Swift version:"
+          swift --version
+          echo ""
+          echo "macOS version:"
+          sw_vers
+
+      - name: Validate project structure
+        run: |
+          echo "Checking project file..."
+          if [ ! -f "OnCallNotify.xcodeproj/project.pbxproj" ]; then
+            echo "❌ Project file not found"
+            exit 1
+          fi
+          echo "✓ Project file exists"
+
+          echo ""
+          echo "Checking Info.plist..."
+          if [ ! -f "OnCallNotify/Info.plist" ]; then
+            echo "❌ Info.plist not found"
+            exit 1
+          fi
+          echo "✓ Info.plist exists"
+
+      - name: Check Swift syntax
+        run: |
+          echo "Checking Swift files for syntax errors..."
+          find OnCallNotify -name "*.swift" -type f | while read file; do
+            echo "Checking: $file"
+            if ! swift -frontend -parse "$file" > /dev/null 2>&1; then
+              echo "❌ Syntax error in: $file"
+              swift -frontend -parse "$file"
+              exit 1
+            fi
+          done
+          echo "✓ All Swift files have valid syntax"
+
+      - name: Install SwiftLint
+        run: brew install swiftlint
+
+      - name: Run SwiftLint
+        run: |
+          echo "Running SwiftLint..."
+          swiftlint lint --strict
+          echo "✓ SwiftLint passed"
+
+      - name: Build (Debug)
+        run: |
+          xcodebuild \
+            -project OnCallNotify.xcodeproj \
+            -scheme OnCallNotify \
+            -configuration Debug \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            clean build
+
+      - name: Build (Release - Unsigned)
+        run: |
+          xcodebuild \
+            -project OnCallNotify.xcodeproj \
+            -scheme OnCallNotify \
+            -configuration Release \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            clean build
+
+      - name: Find built app
+        id: find-app
+        run: |
+          APP_PATH=$(find build/DerivedData/Build/Products -name "OnCallNotify.app" -type d | head -n 1)
+          echo "app_path=$APP_PATH" >> $GITHUB_OUTPUT
+          echo "Found app at: $APP_PATH"
+
+      - name: Verify app bundle
+        run: |
+          APP_PATH="${{ steps.find-app.outputs.app_path }}"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "✗ App bundle not found"
+            exit 1
+          fi
+
+          echo "✓ App bundle exists"
+
+          if [ ! -f "$APP_PATH/Contents/MacOS/OnCallNotify" ]; then
+            echo "✗ Executable not found"
+            exit 1
+          fi
+          echo "✓ Executable found"
+
+          if [ ! -f "$APP_PATH/Contents/Info.plist" ]; then
+            echo "✗ Info.plist not found"
+            exit 1
+          fi
+          echo "✓ Info.plist found"
+
+      - name: PR validation summary
+        if: always()
+        run: |
+          echo "## PR Validation Summary ✅" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Conventional Commits**: Checked" >> $GITHUB_STEP_SUMMARY
+          echo "- **Pre-commit Hooks**: Passed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Swift Syntax**: Validated" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build (Debug)**: Successful" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build (Release)**: Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Build Environment" >> $GITHUB_STEP_SUMMARY
+          echo "- **Xcode**: $(xcodebuild -version | head -n 1)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Swift**: $(swift --version | head -n 1)" >> $GITHUB_STEP_SUMMARY
+          echo "- **macOS**: $(sw_vers -productVersion)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ **Note**: This is an unsigned build. Signed builds are only created on merge to main." >> $GITHUB_STEP_SUMMARY

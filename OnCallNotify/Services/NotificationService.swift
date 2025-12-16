@@ -17,8 +17,7 @@ class NotificationService: NSObject {
     private var notificationPermissionGranted = false
     private static let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "com.oncall.notify",
-        category: "NotificationService"
-    )
+        category: "NotificationService")
 
     // Cached DateFormatter for performance (DateFormatter initialization is expensive)
     private static let dateFormatter: DateFormatter = {
@@ -28,7 +27,7 @@ class NotificationService: NSObject {
         return formatter
     }()
 
-    private override init() {
+    override private init() {
         super.init()
         center.delegate = self
     }
@@ -74,11 +73,11 @@ class NotificationService: NSObject {
         let request = UNNotificationRequest(
             identifier: "incident-\(incident.id)",
             content: content,
-            trigger: nil  // Deliver immediately
+            trigger: nil // Deliver immediately
         )
 
         center.add(request) { error in
-            if let error = error {
+            if let error {
                 Self.logger.error("Error sending incident notification: \(error.localizedDescription, privacy: .public)")
             }
         }
@@ -91,7 +90,7 @@ class NotificationService: NSObject {
         let content = UNMutableNotificationContent()
         content.title = "Incident Acknowledged"
         content.body = incident.title
-        content.sound = nil  // Silent notification for acknowledgments
+        content.sound = nil // Silent notification for acknowledgments
 
         if let service = incident.service {
             content.subtitle = service.summary
@@ -100,11 +99,10 @@ class NotificationService: NSObject {
         let request = UNNotificationRequest(
             identifier: "incident-ack-\(incident.id)",
             content: content,
-            trigger: nil
-        )
+            trigger: nil)
 
         center.add(request) { error in
-            if let error = error {
+            if let error {
                 Self.logger.error("Error sending acknowledgment notification: \(error.localizedDescription, privacy: .public)")
             }
         }
@@ -117,7 +115,7 @@ class NotificationService: NSObject {
         let content = UNMutableNotificationContent()
         content.title = "Incident Resolved"
         content.body = incident.title
-        content.sound = nil  // Silent notification for resolutions
+        content.sound = nil // Silent notification for resolutions
 
         if let service = incident.service {
             content.subtitle = service.summary
@@ -126,11 +124,10 @@ class NotificationService: NSObject {
         let request = UNNotificationRequest(
             identifier: "incident-resolved-\(incident.id)",
             content: content,
-            trigger: nil
-        )
+            trigger: nil)
 
         center.add(request) { error in
-            if let error = error {
+            if let error {
                 Self.logger.error("Error sending resolution notification: \(error.localizedDescription, privacy: .public)")
             }
         }
@@ -144,7 +141,7 @@ class NotificationService: NSObject {
         content.title = "You Are Now On-Call"
         content.sound = .default
 
-        if let nextShift = nextShift {
+        if let nextShift {
             content.body = "Your on-call shift has started"
             content.subtitle = "Next shift: \(Self.dateFormatter.string(from: nextShift))"
         } else {
@@ -154,11 +151,10 @@ class NotificationService: NSObject {
         let request = UNNotificationRequest(
             identifier: "oncall-start",
             content: content,
-            trigger: nil
-        )
+            trigger: nil)
 
         center.add(request) { error in
-            if let error = error {
+            if let error {
                 Self.logger.error("Error sending on-call start notification: \(error.localizedDescription, privacy: .public)")
             }
         }
@@ -171,20 +167,19 @@ class NotificationService: NSObject {
         let content = UNMutableNotificationContent()
         content.title = "On-Call Shift Ended"
         content.body = "You are no longer on-call"
-        content.sound = nil  // Silent notification for shift end
+        content.sound = nil // Silent notification for shift end
 
-        if let nextShift = nextShift {
+        if let nextShift {
             content.subtitle = "Next shift: \(Self.dateFormatter.string(from: nextShift))"
         }
 
         let request = UNNotificationRequest(
             identifier: "oncall-end",
             content: content,
-            trigger: nil
-        )
+            trigger: nil)
 
         center.add(request) { error in
-            if let error = error {
+            if let error {
                 Self.logger.error("Error sending on-call end notification: \(error.localizedDescription, privacy: .public)")
             }
         }
@@ -221,24 +216,23 @@ class NotificationService: NSObject {
 }
 
 // MARK: - UNUserNotificationCenterDelegate
+
 extension NotificationService: UNUserNotificationCenterDelegate {
     /// Handle notification when app is in foreground
     func userNotificationCenter(
-        _ center: UNUserNotificationCenter,
-        willPresent notification: UNNotification,
+        _: UNUserNotificationCenter,
+        willPresent _: UNNotification,
         withCompletionHandler completionHandler:
-            @escaping (UNNotificationPresentationOptions) -> Void
-    ) {
+            @escaping (UNNotificationPresentationOptions) -> Void) {
         // Show notifications even when app is in foreground
         completionHandler([.banner, .sound, .badge])
     }
 
     /// Handle notification interaction (user clicked on notification)
     func userNotificationCenter(
-        _ center: UNUserNotificationCenter,
+        _: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,
-        withCompletionHandler completionHandler: @escaping () -> Void
-    ) {
+        withCompletionHandler completionHandler: @escaping () -> Void) {
         let userInfo = response.notification.request.content.userInfo
 
         // Open incident URL if available
@@ -247,9 +241,9 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         // corporate networks. Since the user explicitly configured and trusts this service,
         // we trust URLs provided by it.
         if let urlString = userInfo["url"] as? String,
-            let url = URL(string: urlString),
-            let scheme = url.scheme?.lowercased(),
-            scheme == "https" || scheme == "http" {
+           let url = URL(string: urlString),
+           let scheme = url.scheme?.lowercased(),
+           scheme == "https" || scheme == "http" {
             Self.logger.info("Opening incident URL from notification: \(scheme, privacy: .public)://...")
             NSWorkspace.shared.open(url)
         } else if let urlString = userInfo["url"] as? String {
