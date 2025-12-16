@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g., 1.2.3 or leave empty for auto-bump)"
+        required: false
+        type: string
 
 # Important: These permissions ensure secrets are only accessible on main branch
 permissions:
@@ -15,8 +21,8 @@ jobs:
   release:
     name: Create Release
     runs-on: macos-latest
-    # Extra security: only run on push to main (not PRs)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Extra security: only run on push to main (not PRs) or manual dispatch
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout code
@@ -31,21 +37,41 @@ jobs:
           git config user.name "GitHubActions"
           git config user.email "github@unicornops.ie"
 
+      - name: Determine version strategy
+        id: version_strategy
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "${{ inputs.version }}" ]; then
+            echo "strategy=manual" >> $GITHUB_OUTPUT
+            echo "Manual version specified: ${{ inputs.version }}"
+          else
+            echo "strategy=auto" >> $GITHUB_OUTPUT
+            echo "Auto-bump version from conventional commits"
+          fi
+
       - name: Check for conventional commits
+        if: steps.version_strategy.outputs.strategy == 'auto'
         uses: cocogitto/cocogitto-action@v4
         with:
           command: check
           args: --from-latest-tag
+        continue-on-error: true
 
       - name: Get next version
+        if: steps.version_strategy.outputs.strategy == 'auto'
         id: next_version
         run: |
-          NEXT_VERSION=$(cog bump --auto --dry-run)
+          NEXT_VERSION=$(cog bump --auto --dry-run 2>&1 || echo "none")
+          if [ "$NEXT_VERSION" == "none" ] || echo "$NEXT_VERSION" | grep -q "No conventional commits"; then
+            echo "No new version to bump - no conventional commits found"
+            echo "next_version=none" >> $GITHUB_OUTPUT
+            exit 1
+          fi
           echo "next_version=$NEXT_VERSION" >> $GITHUB_OUTPUT
           echo "Next version will be: $NEXT_VERSION"
 
       - name: Cocogitto bump
-        id: bump
+        if: steps.version_strategy.outputs.strategy == 'auto' && steps.next_version.outputs.next_version != 'none'
+        id: bump_auto
         uses: cocogitto/cocogitto-action@v4
         with:
           command: bump
@@ -53,16 +79,52 @@ jobs:
           git-user: "GitHubActions"
           git-user-email: "github@unicornops.ie"
 
+      - name: Create manual version tag
+        if: steps.version_strategy.outputs.strategy == 'manual'
+        id: bump_manual
+        run: |
+          VERSION="${{ inputs.version }}"
+          # Add 'v' prefix if not present
+          if [[ ! "$VERSION" =~ ^v ]]; then
+            VERSION="v${VERSION}"
+          fi
+
+          echo "Creating manual tag: $VERSION"
+          git tag -a "$VERSION" -m "chore(release): $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Set bump output
+        id: bump
+        run: |
+          if [ "${{ steps.version_strategy.outputs.strategy }}" == "manual" ]; then
+            echo "version=${{ steps.bump_manual.outputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ steps.bump_auto.outputs.version }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Push tags
         run: |
           git push --follow-tags
 
       - name: Generate changelog for release
         run: |
-          cog changelog \
-            --at "${{ steps.bump.outputs.version }}" \
-            -t full_hash \
-            > GITHUB_CHANGELOG.md
+          VERSION="${{ steps.bump.outputs.version }}"
+          if [ "${{ steps.version_strategy.outputs.strategy }}" == "manual" ]; then
+            # For manual releases, generate changelog from latest tag
+            echo "# Manual Release" > GITHUB_CHANGELOG.md
+            echo "" >> GITHUB_CHANGELOG.md
+            echo "This is a manually triggered release." >> GITHUB_CHANGELOG.md
+            echo "" >> GITHUB_CHANGELOG.md
+            echo "## Recent Changes" >> GITHUB_CHANGELOG.md
+            echo "" >> GITHUB_CHANGELOG.md
+            cog changelog --at "$VERSION" -t full_hash >> GITHUB_CHANGELOG.md 2>&1 || \
+            git log --pretty=format:"- %s (%h)" $(git describe --tags --abbrev=0 2>/dev/null || echo HEAD~10)..HEAD >> GITHUB_CHANGELOG.md
+          else
+            cog changelog \
+              --at "$VERSION" \
+              -t full_hash \
+              > GITHUB_CHANGELOG.md
+          fi
 
       - name: Show build environment
         run: |
