@@ -150,16 +150,32 @@ jobs:
         run: rm -rf build/
 
       - name: Setup code signing
+      - name: Setup code signing
+        if: github.event_name != 'pull_request'
         env:
           CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          # Use login keychain instead of temporary for xcodebuild compatibility
-          KEYCHAIN_PATH="$HOME/Library/Keychains/login.keychain-db"
+          # Create a temporary keychain with a password we control
+          KEYCHAIN_NAME="build.keychain"
+          KEYCHAIN_PASSWORD="temporary_password_$(uuidgen)"
+          KEYCHAIN_PATH="$HOME/Library/Keychains/$KEYCHAIN_NAME-db"
 
-          echo "Using login keychain for certificate import..."
-          echo "Keychain path: $KEYCHAIN_PATH"
+          echo "Creating temporary keychain..."
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+
+          # Set keychain settings - no timeout, no lock
+          echo "Configuring keychain settings..."
+          security set-keychain-settings "$KEYCHAIN_NAME"
+
+          # Unlock the keychain
+          echo "Unlocking keychain..."
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+
+          # Add to keychain search list
+          echo "Adding to keychain search list..."
+          security list-keychains -d user -s "$KEYCHAIN_NAME" $(security list-keychains -d user | sed s/\"//g)
 
           # Import certificate
           echo "Importing certificate..."
@@ -181,38 +197,45 @@ jobs:
             exit 1
           fi
 
-          # Import certificate to login keychain
-          echo "Importing certificate to login keychain..."
+          # Import certificate with -T flags for codesign and security tools
+          echo "Importing certificate to keychain..."
           security import "$CERTIFICATE_PATH" \
             -P "$CERTIFICATE_PASSWORD" \
             -A \
             -t cert \
             -f pkcs12 \
-            -k "$KEYCHAIN_PATH" 2>&1 || {
+            -k "$KEYCHAIN_NAME" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security || {
               echo "Error: Certificate import failed"
+              echo "This usually means:"
+              echo "1. APPLE_CERTIFICATE_PASSWORD is incorrect"
+              echo "2. APPLE_CERTIFICATE_BASE64 is not a valid .p12 file"
+              echo "3. The certificate doesn't contain a private key"
               exit 1
             }
 
-          # Set partition list to allow codesigning
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" "$KEYCHAIN_PATH" 2>/dev/null || \
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s "$KEYCHAIN_PATH" 2>/dev/null || \
-          echo "Note: Could not set partition list, but certificate may still work"
+          # Set partition list to allow access without password prompt
+          echo "Setting partition list for codesign access..."
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
 
           # Verify certificate and get exact identity
           echo "Installed certificates:"
-          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+          security find-identity -v -p codesigning "$KEYCHAIN_NAME"
 
           # Count how many identities we have
-          IDENTITY_COUNT=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep -c "Developer ID Application" || echo "0")
+          IDENTITY_COUNT=$(security find-identity -v -p codesigning "$KEYCHAIN_NAME" | grep -c "Developer ID Application" || echo "0")
           echo "Found $IDENTITY_COUNT Developer ID Application certificate(s)"
 
           if [ "$IDENTITY_COUNT" -eq "0" ]; then
             echo "Error: No Developer ID Application certificate found after import"
+            echo "The certificate import succeeded but no codesigning identity is available"
+            echo "Please verify your certificate export includes the private key"
             exit 1
           fi
 
           # Extract the exact identity for use in xcodebuild
-          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep "Developer ID Application" | head -1 | sed -n 's/.*"\(.*\)"/\1/p')
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_NAME" | grep "Developer ID Application" | head -1 | sed -n 's/.*"\(.*\)"/\1/p')
           echo "Found identity: $IDENTITY"
 
           if [ -z "$IDENTITY" ]; then
@@ -220,22 +243,40 @@ jobs:
             exit 1
           fi
 
-          # Store the exact identity name for the build step
+          # Extract team ID from identity string (it's in parentheses)
+          # Example: "Developer ID Application: Company Name (TEAM123)" -> "TEAM123"
+          echo "Extracting team ID from identity string..."
+          CERT_TEAM_ID=$(echo "$IDENTITY" | sed -n 's/.*(\([^)]*\)).*/\1/p')
+
+          if [ -z "$CERT_TEAM_ID" ]; then
+            echo "Warning: Could not extract team ID from identity, using provided value"
+            CERT_TEAM_ID="$TEAM_ID"
+          else
+            echo "Extracted team ID from identity: $CERT_TEAM_ID"
+          fi
+
+          # Store the exact identity name, team ID, and keychain info for the build step
           echo "SIGNING_IDENTITY=$IDENTITY" >> $GITHUB_ENV
+          echo "CERT_TEAM_ID=$CERT_TEAM_ID" >> $GITHUB_ENV
+          echo "KEYCHAIN_NAME=$KEYCHAIN_NAME" >> $GITHUB_ENV
+          echo "KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> $GITHUB_ENV
 
           echo "✅ Code signing certificate installed"
 
       - name: Build and sign release
-        env:
-          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        if: github.event_name != 'pull_request'
         run: |
-          echo "Building with Developer ID Application certificate for team: $TEAM_ID"
+          echo "Building with Developer ID Application certificate for team: $CERT_TEAM_ID"
 
           # Verify certificate is accessible
           echo "Verifying certificate in login keychain:"
           security find-identity -v -p codesigning
 
           echo "Using signing identity: $SIGNING_IDENTITY"
+          echo "Using team ID: $CERT_TEAM_ID"
+
+          # Unlock keychain before build (in case it locked)
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
 
           # Build with signing
           xcodebuild \
@@ -243,11 +284,14 @@ jobs:
             -scheme OnCallNotify \
             -configuration Release \
             -derivedDataPath build/DerivedData \
-            SYMROOT=build \
             CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" \
             CODE_SIGN_STYLE=Manual \
-            DEVELOPMENT_TEAM="$TEAM_ID" \
-            clean build
+            DEVELOPMENT_TEAM="$CERT_TEAM_ID" \
+            ENABLE_HARDENED_RUNTIME=YES \
+            CODE_SIGN_ENTITLEMENTS="OnCallNotify/OnCallNotify.entitlements" \
+            CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
+            OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_NAME --options runtime --timestamp" \
+            build
 
       - name: Find built app
         id: find-app
