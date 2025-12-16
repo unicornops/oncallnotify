@@ -36,7 +36,7 @@ class KeychainHelper {
             kSecAttrAccount as String: apiTokenKey,
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
-            kSecAttrSynchronizable as String: false  // Explicitly prevent sync
+            kSecAttrSynchronizable as String: false // Explicitly prevent sync
         ]
 
         let status = SecItemAdd(query as CFDictionary, nil)
@@ -82,6 +82,6 @@ class KeychainHelper {
     // MARK: - Check if API Token Exists
 
     func hasAPIToken() -> Bool {
-        return getAPIToken() != nil
+        getAPIToken() != nil
     }
 }

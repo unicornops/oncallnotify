@@ -87,10 +87,9 @@ struct MenuView: View {
                 },
                 label: {
                     Image(systemName: "arrow.clockwise")
-                }
-            )
-            .buttonStyle(.plain)
-            .help("Refresh")
+                })
+                .buttonStyle(.plain)
+                .help("Refresh")
         }
         .padding()
     }
@@ -347,16 +346,15 @@ struct IncidentRowView: View {
                                         .font(.caption)
                                         .foregroundColor(.orange)
                                 }
-                            }
-                        )
-                        .buttonStyle(.plain)
-                        .disabled(isAcknowledging)
-                        .help("Acknowledge incident")
+                            })
+                            .buttonStyle(.plain)
+                            .disabled(isAcknowledging)
+                            .help("Acknowledge incident")
                     }
 
                     // Open button
                     if let urlString = incident.htmlUrl,
-                        let url = URL(string: urlString) {
+                       let url = URL(string: urlString) {
                         Button(
                             action: {
                                 NSWorkspace.shared.open(url)
@@ -364,9 +362,8 @@ struct IncidentRowView: View {
                             label: {
                                 Image(systemName: "arrow.up.right.square")
                                     .font(.caption)
-                            }
-                        )
-                        .buttonStyle(.plain)
+                            })
+                            .buttonStyle(.plain)
                     }
                 }
             }
@@ -382,11 +379,11 @@ struct IncidentRowView: View {
     private var statusColor: Color {
         switch incident.status {
         case .triggered:
-            return .red
+            .red
         case .acknowledged:
-            return .orange
+            .orange
         case .resolved:
-            return .green
+            .green
         }
     }
 

@@ -1,24 +1,68 @@
-name: Release
+name: Release on Merge to Main
 
 on:
   push:
-    tags:
-      - "v*.*.*"
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Release version (e.g., 1.0.0)"
-        required: true
-        type: string
+    branches:
+      - main
+
+# Important: These permissions ensure secrets are only accessible on main branch
+permissions:
+  id-token: write
+  contents: write
+  packages: write
 
 jobs:
-  build-and-release:
-    name: Build and Create Release
+  release:
+    name: Create Release
     runs-on: macos-latest
+    # Extra security: only run on push to main (not PRs)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Use a PAT or default token with write permissions
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git for bot commits
+        run: |
+          git config user.name "GitHubActions"
+          git config user.email "github@unicornops.ie"
+
+      - name: Check for conventional commits
+        uses: cocogitto/cocogitto-action@v4
+        with:
+          command: check
+          args: --from-latest-tag
+
+      - name: Get next version
+        id: next_version
+        run: |
+          NEXT_VERSION=$(cog bump --auto --dry-run)
+          echo "next_version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+          echo "Next version will be: $NEXT_VERSION"
+
+      - name: Cocogitto bump
+        id: bump
+        uses: cocogitto/cocogitto-action@v4
+        with:
+          command: bump
+          args: --auto
+          git-user: "GitHubActions"
+          git-user-email: "github@unicornops.ie"
+
+      - name: Push tags
+        run: |
+          git push --follow-tags
+
+      - name: Generate changelog for release
+        run: |
+          cog changelog \
+            --at "${{ steps.bump.outputs.version }}" \
+            -t full_hash \
+            > GITHUB_CHANGELOG.md
 
       - name: Select Xcode version
         run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
@@ -34,16 +78,14 @@ jobs:
           echo "macOS version:"
           sw_vers
 
-      - name: Set version
+      - name: Set version for build
         id: version
         run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            VERSION="${{ github.event.inputs.version }}"
-          else
-            VERSION="${GITHUB_REF#refs/tags/v}"
-          fi
+          VERSION="${{ steps.bump.outputs.version }}"
+          # Remove 'v' prefix if present
+          VERSION="${VERSION#v}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Release version: $VERSION"
+          echo "Building version: $VERSION"
 
       - name: Clean build directory
         run: rm -rf build/
@@ -89,16 +131,10 @@ jobs:
             -f pkcs12 \
             -k "$KEYCHAIN_PATH" 2>&1 || {
               echo "Error: Certificate import failed"
-              echo "This usually means:"
-              echo "1. APPLE_CERTIFICATE_PASSWORD is incorrect"
-              echo "2. APPLE_CERTIFICATE_BASE64 is not a valid .p12 file"
-              echo "3. The certificate doesn't contain a private key"
               exit 1
             }
 
           # Set partition list to allow codesigning
-          # Get the login keychain password - for GitHub Actions runners, try empty or unlock without password
-          echo "Configuring keychain access for codesigning..."
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" "$KEYCHAIN_PATH" 2>/dev/null || \
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s "$KEYCHAIN_PATH" 2>/dev/null || \
           echo "Note: Could not set partition list, but certificate may still work"
@@ -113,8 +149,6 @@ jobs:
 
           if [ "$IDENTITY_COUNT" -eq "0" ]; then
             echo "Error: No Developer ID Application certificate found after import"
-            echo "The certificate import succeeded but no codesigning identity is available"
-            echo "Please verify your certificate export includes the private key"
             exit 1
           fi
 
@@ -144,7 +178,7 @@ jobs:
 
           echo "Using signing identity: $SIGNING_IDENTITY"
 
-          # Build with signing - certificate is in login keychain so should work
+          # Build with signing
           xcodebuild \
             -project OnCallNotify.xcodeproj \
             -scheme OnCallNotify \
@@ -175,7 +209,6 @@ jobs:
           echo "App bundle structure:"
           ls -lhR "$APP_PATH"
 
-          # Verify required components
           if [ ! -f "$APP_PATH/Contents/MacOS/OnCallNotify" ]; then
             echo "Error: Executable not found"
             exit 1
@@ -313,7 +346,6 @@ jobs:
         if: always()
         run: |
           echo "Cleaning up imported certificate from login keychain..."
-          # Find and delete the imported certificate
           security find-identity -v -p codesigning | grep "Developer ID Application: Unicorn Operations" | while read line; do
             HASH=$(echo "$line" | awk '{print $2}')
             if [ ! -z "$HASH" ]; then
@@ -323,20 +355,6 @@ jobs:
           done
           echo "Certificate cleanup complete"
 
-      - name: Upload DMG artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: OnCallNotify-DMG-${{ steps.version.outputs.version }}
-          path: ${{ steps.create-dmg.outputs.dmg_name }}
-          retention-days: 90
-
-      - name: Upload ZIP artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: OnCallNotify-ZIP-${{ steps.version.outputs.version }}
-          path: ${{ steps.create-zip.outputs.zip_name }}
-          retention-days: 90
-
       - name: Create Release Notes
         run: |
           VERSION="${{ steps.version.outputs.version }}"
@@ -345,6 +363,12 @@ jobs:
 
           cat > release-notes.md << EOF
           # OnCall Notify v${VERSION}
+
+          ## 📋 Changelog
+
+          $(cat GITHUB_CHANGELOG.md)
+
+          ---
 
           ## 📦 Installation
 
@@ -391,30 +415,20 @@ jobs:
           5. Click "Test Connection" to verify
 
           For more details, see the [Quick Start Guide](https://github.com/${{ github.repository }}/blob/main/QUICKSTART.md).
-
-          ## 📚 Documentation
-
-          - [README](https://github.com/${{ github.repository }}/blob/main/README.md)
-          - [Features](https://github.com/${{ github.repository }}/blob/main/FEATURES.md)
-          - [Troubleshooting](https://github.com/${{ github.repository }}/blob/main/TROUBLESHOOTING.md)
-
-          ---
-
-          **Full Changelog**: https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md
           EOF
 
           cat release-notes.md
 
       - name: Create GitHub Release
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.bump.outputs.version }}
           body_path: release-notes.md
           files: |
             ${{ steps.create-dmg.outputs.dmg_name }}
             ${{ steps.create-zip.outputs.zip_name }}
             checksums.txt
-          draft: true
+          draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -425,7 +439,7 @@ jobs:
 
           echo "## Release Build Summary 🎉" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version**: v${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: ${{ steps.bump.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Bundle Version**: ${{ steps.app-info.outputs.bundle_version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Bundle Build**: ${{ steps.app-info.outputs.bundle_build }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Xcode**: $(xcodebuild -version | head -n 1)" >> $GITHUB_STEP_SUMMARY
@@ -437,14 +451,10 @@ jobs:
           echo "- ✅ Notarized by Apple" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Ready for public distribution" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📦 Artifacts Created" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Release Created" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ steps.create-dmg.outputs.dmg_name }}\` ($(ls -lh ${{ steps.create-dmg.outputs.dmg_name }} | awk '{print $5}'GB))" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ steps.create-zip.outputs.zip_name }}\` ($(ls -lh ${{ steps.create-zip.outputs.zip_name }} | awk '{print $5}'GB))" >> $GITHUB_STEP_SUMMARY
-          echo "- \`checksums.txt\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Tag: \`${{ steps.bump.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- DMG: \`${{ steps.create-dmg.outputs.dmg_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- ZIP: \`${{ steps.create-zip.outputs.zip_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🔐 Checksums" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          cat checksums.txt >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "🎉 **Release published**: https://github.com/${{ github.repository }}/releases/tag/${{ steps.bump.outputs.version }}" >> $GITHUB_STEP_SUMMARY

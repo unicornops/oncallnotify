@@ -23,7 +23,7 @@ class OnCallService: ObservableObject {
     // Rate limiting and retry logic
     private var lastFetchTime: Date?
     private var consecutiveErrors: Int = 0
-    private let minimumFetchInterval: TimeInterval = 5.0  // Minimum 5 seconds between fetches
+    private let minimumFetchInterval: TimeInterval = 5.0 // Minimum 5 seconds between fetches
     private let maxRetryCount: Int = 3
     private var isBackingOff: Bool = false
 
@@ -85,12 +85,12 @@ class OnCallService: ObservableObject {
 
     func fetchAllData() async {
         guard KeychainHelper.shared.hasAPIToken() else {
-            self.lastError = OnCallError.noAPIToken
+            lastError = OnCallError.noAPIToken
             return
         }
 
-        self.isLoading = true
-        self.lastError = nil
+        isLoading = true
+        lastError = nil
 
         do {
             // First, get current user ID
@@ -110,22 +110,22 @@ class OnCallService: ObservableObject {
             // Mark successful fetch
             handleFetchSuccess()
         } catch {
-            self.lastError = error
+            lastError = error
 
             // Handle fetch error with backoff logic
             handleFetchError(error)
 
             // Log technical details securely
             #if DEBUG
-                if let onCallError = error as? OnCallError {
-                    Self.logger.debug(
-                        "Error: \(onCallError.technicalDescription, privacy: .private)")
-                } else {
-                    Self.logger.debug("Error: \(error.localizedDescription, privacy: .private)")
-                }
+            if let onCallError = error as? OnCallError {
+                Self.logger.debug(
+                    "Error: \(onCallError.technicalDescription, privacy: .private)")
+            } else {
+                Self.logger.debug("Error: \(error.localizedDescription, privacy: .private)")
+            }
             #endif
         }
-        self.isLoading = false
+        isLoading = false
     }
 
     // MARK: - API Methods
@@ -168,7 +168,7 @@ class OnCallService: ObservableObject {
         }
 
         // Refresh data to get latest from server after a brief delay
-        try? await Task.sleep(nanoseconds: 1_000_000_000)  // Wait 1 second
+        try? await Task.sleep(nanoseconds: 1_000_000_000) // Wait 1 second
         await fetchAllData()
     }
 
@@ -196,8 +196,7 @@ class OnCallService: ObservableObject {
             } else {
                 throw OnCallError.apiError(
                     technicalMessage: "HTTP \(httpResponse.statusCode)",
-                    userMessage: "Unable to complete request"
-                )
+                    userMessage: "Unable to complete request")
             }
         }
 
@@ -249,8 +248,7 @@ class OnCallService: ObservableObject {
             } else {
                 throw OnCallError.apiError(
                     technicalMessage: "HTTP \(httpResponse.statusCode)",
-                    userMessage: "Unable to complete request"
-                )
+                    userMessage: "Unable to complete request")
             }
         }
 
@@ -271,12 +269,10 @@ class OnCallService: ObservableObject {
         let now = Date()
         guard
             let futureDate = Calendar.current.date(
-                byAdding: .day, value: futureScheduleLookupDays, to: now)
-        else {
+                byAdding: .day, value: futureScheduleLookupDays, to: now) else {
             throw OnCallError.apiError(
                 technicalMessage: "Failed to calculate future date",
-                userMessage: "Unable to process schedule data"
-            )
+                userMessage: "Unable to process schedule data")
         }
 
         let sinceParam = Self.iso8601Formatter.string(from: now)
@@ -319,8 +315,7 @@ class OnCallService: ObservableObject {
             } else {
                 throw OnCallError.apiError(
                     technicalMessage: "HTTP \(httpResponse.statusCode)",
-                    userMessage: "Unable to complete request"
-                )
+                    userMessage: "Unable to complete request")
             }
         }
 
@@ -366,8 +361,8 @@ class OnCallService: ObservableObject {
         // Process incidents
         summary.incidents = incidents
         summary.totalAlerts = incidents.count
-        summary.acknowledgedCount = incidents.filter { $0.status == .acknowledged }.count
-        summary.unacknowledgedCount = incidents.filter { $0.status == .triggered }.count
+        summary.acknowledgedCount = incidents.count { $0.status == .acknowledged }
+        summary.unacknowledgedCount = incidents.count { $0.status == .triggered }
 
         // Process on-call status
         let now = Date()
@@ -377,11 +372,11 @@ class OnCallService: ObservableObject {
         for oncall in oncalls {
             // Check if currently on call
             if let startString = oncall.start,
-                let endString = oncall.end,
-                let startDate = Self.iso8601Formatter.date(from: startString),
-                let endDate = Self.iso8601Formatter.date(from: endString) {
+               let endString = oncall.end,
+               let startDate = Self.iso8601Formatter.date(from: startString),
+               let endDate = Self.iso8601Formatter.date(from: endString) {
                 // Currently on call
-                if startDate <= now && endDate > now {
+                if startDate <= now, endDate > now {
                     isCurrentlyOnCall = true
                 }
 
@@ -413,7 +408,7 @@ class OnCallService: ObservableObject {
         previousOnCallStatus = isCurrentlyOnCall
         isFirstFetch = false
 
-        self.alertSummary = summary
+        alertSummary = summary
     }
 
     private func detectAndNotifyChanges(incidents: [Incident], isOnCall: Bool, nextShift: Date?) {
@@ -428,7 +423,7 @@ class OnCallService: ObservableObject {
                 // Existing incident - check for status transition
                 if previousStatus != incident.status {
                     // Status changed
-                    if previousStatus == .triggered && incident.status == .acknowledged {
+                    if previousStatus == .triggered, incident.status == .acknowledged {
                         // Incident was acknowledged
                         NotificationService.shared.removeIncidentNotification(incidentId: incident.id)
                         NotificationService.shared.sendIncidentAcknowledgedNotification(incident: incident)
@@ -473,7 +468,7 @@ class OnCallService: ObservableObject {
     func refreshData() {
         // Prevent rapid refresh spam
         if let lastFetch = lastFetchTime,
-            Date().timeIntervalSince(lastFetch) < minimumFetchInterval {
+           Date().timeIntervalSince(lastFetch) < minimumFetchInterval {
             Self.logger.debug("Refresh throttled - minimum interval not met")
             return
         }
@@ -494,7 +489,7 @@ class OnCallService: ObservableObject {
             try await fetchCurrentUser()
             return true
         } catch {
-            self.lastError = error
+            lastError = error
             return false
         }
     }
@@ -507,7 +502,7 @@ class OnCallService: ObservableObject {
         isBackingOff = false
     }
 
-    private func handleFetchError(_ error: Error) {
+    private func handleFetchError(_: Error) {
         consecutiveErrors += 1
         lastFetchTime = Date()
 
@@ -521,9 +516,9 @@ class OnCallService: ObservableObject {
             )
 
             DispatchQueue.main.asyncAfter(deadline: .now() + backoffTime) { [weak self] in
-                guard let self = self else { return }
-                self.isBackingOff = false
-                self.consecutiveErrors = max(0, self.consecutiveErrors - 1)
+                guard let self else { return }
+                isBackingOff = false
+                consecutiveErrors = max(0, consecutiveErrors - 1)
                 Self.logger.info("Backoff period ended, resuming normal operation")
             }
         }
@@ -535,17 +530,17 @@ class OnCallService: ObservableObject {
 
     private func logSecureRequest(_ url: URL) {
         #if DEBUG
-            Self.logger.debug("API Request: \(url.path, privacy: .public)")
+        Self.logger.debug("API Request: \(url.path, privacy: .public)")
         #else
-            Self.logger.info("API Request initiated")
+        Self.logger.info("API Request initiated")
         #endif
     }
 
     private func logSecureResponse(statusCode: Int, bytes: Int) {
         #if DEBUG
-            Self.logger.debug("API Response: Status \(statusCode), \(bytes) bytes")
+        Self.logger.debug("API Response: Status \(statusCode), \(bytes) bytes")
         #else
-            Self.logger.info("API Response received")
+        Self.logger.info("API Response received")
         #endif
     }
 }

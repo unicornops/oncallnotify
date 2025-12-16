@@ -168,12 +168,12 @@ struct AlertSummary {
     var incidents: [Incident]
 
     init() {
-        self.totalAlerts = 0
-        self.acknowledgedCount = 0
-        self.unacknowledgedCount = 0
-        self.isOnCall = false
-        self.nextOnCallShift = nil
-        self.incidents = []
+        totalAlerts = 0
+        acknowledgedCount = 0
+        unacknowledgedCount = 0
+        isOnCall = false
+        nextOnCallShift = nil
+        incidents = []
     }
 }
 
@@ -208,27 +208,27 @@ enum OnCallError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidURL:
-            return "Configuration error. Please check your settings."
+            "Configuration error. Please check your settings."
         case .noAPIToken:
-            return "No API token found. Please configure in Settings."
+            "No API token found. Please configure in Settings."
         case .invalidResponse:
-            return "Unable to process server response. Please try again."
+            "Unable to process server response. Please try again."
         case .unauthorized:
-            return "Authentication failed. Please verify your API token in Settings."
+            "Authentication failed. Please verify your API token in Settings."
         case .rateLimited:
-            return "Too many requests. Please wait a few minutes and try again."
-        case .serverError(let statusCode):
+            "Too many requests. Please wait a few minutes and try again."
+        case let .serverError(statusCode):
             if statusCode >= 500 {
-                return "Server is temporarily unavailable. Please try again later."
+                "Server is temporarily unavailable. Please try again later."
             } else {
-                return "Unable to complete request. Please try again."
+                "Unable to complete request. Please try again."
             }
-        case .apiError(_, let userMessage):
-            return userMessage ?? "Unable to connect to PagerDuty. Please check your token and connection."
-        case .networkError(_, let userMessage):
-            return userMessage ?? "Network connection error. Please check your internet connection."
-        case .acknowledgmentFailed(let message):
-            return message
+        case let .apiError(_, userMessage):
+            userMessage ?? "Unable to connect to PagerDuty. Please check your token and connection."
+        case let .networkError(_, userMessage):
+            userMessage ?? "Network connection error. Please check your internet connection."
+        case let .acknowledgmentFailed(message):
+            message
         }
     }
 
@@ -236,23 +236,23 @@ enum OnCallError: Error, LocalizedError {
     var technicalDescription: String {
         switch self {
         case .invalidURL:
-            return "Invalid URL construction"
+            "Invalid URL construction"
         case .noAPIToken:
-            return "No API token in Keychain"
+            "No API token in Keychain"
         case .invalidResponse:
-            return "Invalid HTTP response"
+            "Invalid HTTP response"
         case .unauthorized:
-            return "HTTP 401 Unauthorized"
+            "HTTP 401 Unauthorized"
         case .rateLimited:
-            return "HTTP 429 Rate Limited"
-        case .serverError(let statusCode):
-            return "HTTP \(statusCode) Server Error"
-        case .apiError(let technicalMessage, _):
-            return "API Error: \(technicalMessage)"
-        case .networkError(let error, _):
-            return "Network Error: \(error.localizedDescription)"
-        case .acknowledgmentFailed(let message):
-            return "Acknowledgment Failed: \(message)"
+            "HTTP 429 Rate Limited"
+        case let .serverError(statusCode):
+            "HTTP \(statusCode) Server Error"
+        case let .apiError(technicalMessage, _):
+            "API Error: \(technicalMessage)"
+        case let .networkError(error, _):
+            "Network Error: \(error.localizedDescription)"
+        case let .acknowledgmentFailed(message):
+            "Acknowledgment Failed: \(message)"
         }
     }
 }
