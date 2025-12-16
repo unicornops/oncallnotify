@@ -130,7 +130,43 @@ class OnCallService: ObservableObject {
 
     // MARK: - API Methods
 
+    func acknowledgeAllIncidents() async throws {
+        // Get all triggered incidents
+        let triggeredIncidents = alertSummary.incidents.filter { $0.status == .triggered }
+
+        guard !triggeredIncidents.isEmpty else {
+            return
+        }
+
+        // Acknowledge each incident without refreshing after each one
+        var errors: [Error] = []
+        for incident in triggeredIncidents {
+            do {
+                try await performAcknowledgment(incidentId: incident.id)
+            } catch {
+                errors.append(error)
+            }
+        }
+
+        // If any errors occurred, throw the first one
+        if let firstError = errors.first {
+            throw firstError
+        }
+
+        // Refresh data once at the end to get latest from server
+        try? await Task.sleep(nanoseconds: 1_000_000_000) // Wait 1 second
+        await fetchAllData()
+    }
+
     func acknowledgeIncident(incidentId: String) async throws {
+        try await performAcknowledgment(incidentId: incidentId)
+
+        // Refresh data to get latest from server after a brief delay
+        try? await Task.sleep(nanoseconds: 1_000_000_000) // Wait 1 second
+        await fetchAllData()
+    }
+
+    private func performAcknowledgment(incidentId: String) async throws {
         let endpoint = "/incidents/\(incidentId)"
         let url = try buildURL(endpoint: endpoint)
         var request = try buildRequest(url: url)
@@ -166,10 +202,6 @@ class OnCallService: ObservableObject {
                 throw OnCallError.acknowledgmentFailed(message: "Failed to acknowledge incident")
             }
         }
-
-        // Refresh data to get latest from server after a brief delay
-        try? await Task.sleep(nanoseconds: 1_000_000_000) // Wait 1 second
-        await fetchAllData()
     }
 
     private func fetchCurrentUser() async throws {
