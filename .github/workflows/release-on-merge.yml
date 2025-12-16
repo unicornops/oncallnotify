@@ -296,8 +296,20 @@ jobs:
         id: find-app
         run: |
           APP_PATH=$(find build -name "OnCallNotify.app" -type d | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: OnCallNotify.app not found in build directory"
+            exit 1
+          fi
+          # Convert to absolute path
+          APP_PATH=$(cd "$(dirname "$APP_PATH")" && pwd)/$(basename "$APP_PATH")
           echo "app_path=$APP_PATH" >> $GITHUB_OUTPUT
           echo "Found app at: $APP_PATH"
+
+          # Verify Info.plist exists
+          if [ ! -f "$APP_PATH/Contents/Info.plist" ]; then
+            echo "Error: Info.plist not found at $APP_PATH/Contents/Info.plist"
+            exit 1
+          fi
 
       - name: Verify app bundle
         run: |
@@ -376,9 +388,14 @@ jobs:
         id: app-info
         run: |
           APP_PATH="${{ steps.find-app.outputs.app_path }}"
-          BUNDLE_ID=$(defaults read "$APP_PATH/Contents/Info.plist" CFBundleIdentifier)
-          BUNDLE_VERSION=$(defaults read "$APP_PATH/Contents/Info.plist" CFBundleShortVersionString)
-          BUNDLE_BUILD=$(defaults read "$APP_PATH/Contents/Info.plist" CFBundleVersion)
+          PLIST_PATH="$APP_PATH/Contents/Info.plist"
+
+          echo "Reading from: $PLIST_PATH"
+
+          # Use PlistBuddy for more reliable plist reading
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$PLIST_PATH")
+          BUNDLE_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST_PATH")
+          BUNDLE_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST_PATH")
 
           echo "bundle_id=$BUNDLE_ID" >> $GITHUB_OUTPUT
           echo "bundle_version=$BUNDLE_VERSION" >> $GITHUB_OUTPUT
