@@ -214,13 +214,12 @@ struct AccountRowView: View {
             .help("Test Connection")
 
             // Toggle enabled
-            Toggle("", isOn: .constant(account.isEnabled))
-                .labelsHidden()
-                .onChange(of: account.isEnabled) { _ in
-                    onToggle()
-                }
-                .toggleStyle(SwitchToggleStyle())
-                .help(account.isEnabled ? "Disable Account" : "Enable Account")
+            Button(action: onToggle) {
+                Image(systemName: account.isEnabled ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(account.isEnabled ? .green : .gray)
+            }
+            .buttonStyle(.plain)
+            .help(account.isEnabled ? "Disable Account" : "Enable Account")
 
             // Delete button
             Button(action: onDelete) {
