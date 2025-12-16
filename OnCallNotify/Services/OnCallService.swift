@@ -16,48 +16,44 @@ class OnCallService: ObservableObject {
     @Published var isLoading = false
     @Published var lastError: Error?
 
-    private let baseURL = "https://api.pagerduty.com"
-    private var currentUserId: String?
+    private var accountServices: [String: AccountService] = [:] // accountId -> service
     private var updateTimer: Timer?
 
     // Rate limiting and retry logic
     private var lastFetchTime: Date?
-    private var consecutiveErrors: Int = 0
-    private let minimumFetchInterval: TimeInterval = 5.0 // Minimum 5 seconds between fetches
-    private let maxRetryCount: Int = 3
-    private var isBackingOff: Bool = false
-
-    // On-call schedule lookup window (days into the future)
-    private let futureScheduleLookupDays: Int = 30
-
-    // Track previous state for change detection
-    private var previousIncidentStatuses: [String: IncidentStatus] = [:]
-    private var previousOnCallStatus: Bool = false
-    private var isFirstFetch: Bool = true
-
-    // Cached ISO8601DateFormatter for performance (DateFormatter initialization is expensive)
-    private static let iso8601Formatter = ISO8601DateFormatter()
-
-    private lazy var urlSession: URLSession = {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 60
-        config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        config.waitsForConnectivity = false
-
-        // Disable automatic logging
-        config.httpShouldSetCookies = false
-        config.httpCookieAcceptPolicy = .never
-
-        return URLSession(configuration: config)
-    }()
+    private let minimumFetchInterval: TimeInterval = 5.0
 
     private init() {
+        initializeAccountServices()
         startAutoUpdate()
     }
 
     deinit {
         updateTimer?.invalidate()
+    }
+
+    // MARK: - Account Management
+
+    func initializeAccountServices() {
+        let accounts = KeychainHelper.shared.getAccounts()
+
+        // Remove services for accounts that no longer exist
+        let accountIds = Set(accounts.map { $0.id })
+        accountServices = accountServices.filter { accountIds.contains($0.key) }
+
+        // Create or update services for each account
+        for account in accounts where account.isEnabled {
+            if accountServices[account.id] == nil {
+                accountServices[account.id] = AccountService(account: account)
+            } else {
+                accountServices[account.id]?.updateAccount(account)
+            }
+        }
+    }
+
+    func reloadAccounts() {
+        initializeAccountServices()
+        refreshData()
     }
 
     // MARK: - Auto Update
@@ -84,61 +80,202 @@ class OnCallService: ObservableObject {
     // MARK: - Main Fetch Method
 
     func fetchAllData() async {
-        guard KeychainHelper.shared.hasAPIToken() else {
+        // Check if we have any accounts
+        guard !accountServices.isEmpty else {
             lastError = OnCallError.noAPIToken
+            alertSummary = AlertSummary()
             return
         }
 
         isLoading = true
         lastError = nil
 
-        do {
-            // First, get current user ID
-            if currentUserId == nil {
-                try await fetchCurrentUser()
+        // Fetch data from all account services
+        await withTaskGroup(of: (String, AccountAlertSummary?, Error?).self) { group in
+            for (accountId, service) in accountServices {
+                group.addTask {
+                    do {
+                        let summary = try await service.fetchData()
+                        return (accountId, summary, nil)
+                    } catch {
+                        return (accountId, nil, error)
+                    }
+                }
             }
 
-            // Fetch incidents and on-call status
-            async let incidents = fetchIncidents()
-            async let oncalls = fetchOncalls()
+            var accountSummaries: [String: AccountAlertSummary] = [:]
+            var hasError = false
+            var firstError: Error?
 
-            let (fetchedIncidents, fetchedOncalls) = try await (incidents, oncalls)
-
-            // Process the data
-            await processData(incidents: fetchedIncidents, oncalls: fetchedOncalls)
-
-            // Mark successful fetch
-            handleFetchSuccess()
-        } catch {
-            lastError = error
-
-            // Handle fetch error with backoff logic
-            handleFetchError(error)
-
-            // Log technical details securely
-            #if DEBUG
-            if let onCallError = error as? OnCallError {
-                Self.logger.debug(
-                    "Error: \(onCallError.technicalDescription, privacy: .private)")
-            } else {
-                Self.logger.debug("Error: \(error.localizedDescription, privacy: .private)")
+            for await (accountId, summary, error) in group {
+                if let summary = summary {
+                    accountSummaries[accountId] = summary
+                } else if let error = error {
+                    hasError = true
+                    if firstError == nil {
+                        firstError = error
+                    }
+                }
             }
-            #endif
+
+            // Aggregate results
+            aggregateResults(accountSummaries: accountSummaries)
+
+            // Set error if any account failed
+            if hasError, let error = firstError {
+                lastError = error
+            }
         }
+
         isLoading = false
+    }
+
+    private func aggregateResults(accountSummaries: [String: AccountAlertSummary]) {
+        var summary = AlertSummary()
+        summary.accountSummaries = accountSummaries
+
+        // Aggregate totals across all accounts
+        var allIncidents: [Incident] = []
+
+        for (_, accountSummary) in accountSummaries {
+            summary.totalAlerts += accountSummary.totalAlerts
+            summary.acknowledgedCount += accountSummary.acknowledgedCount
+            summary.unacknowledgedCount += accountSummary.unacknowledgedCount
+            summary.isOnCall = summary.isOnCall || accountSummary.isOnCall
+            allIncidents.append(contentsOf: accountSummary.incidents)
+        }
+
+        // Sort incidents by creation time (most recent first)
+        allIncidents.sort { incident1, incident2 in
+            let formatter = ISO8601DateFormatter()
+            guard let date1 = formatter.date(from: incident1.createdAt),
+                  let date2 = formatter.date(from: incident2.createdAt) else {
+                return false
+            }
+            return date1 > date2
+        }
+
+        summary.incidents = allIncidents
+
+        alertSummary = summary
+    }
+
+    // MARK: - API Methods
+
+    func acknowledgeIncident(incidentId: String, accountId: String) async throws {
+        guard let service = accountServices[accountId] else {
+            throw OnCallError.apiError(
+                technicalMessage: "Account service not found",
+                userMessage: "Unable to find account configuration"
+            )
+        }
+
+        try await service.acknowledgeIncident(incidentId: incidentId)
+
+        // Refresh data after acknowledgment
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        await fetchAllData()
+    }
+
+    func testConnection(accountId: String) async -> Bool {
+        guard let service = accountServices[accountId] else {
+            return false
+        }
+        return await service.testConnection()
+    }
+
+    // MARK: - Public Helper Methods
+
+    func refreshData() {
+        // Prevent rapid refresh spam
+        if let lastFetch = lastFetchTime,
+           Date().timeIntervalSince(lastFetch) < minimumFetchInterval {
+            Self.logger.debug("Refresh throttled - minimum interval not met")
+            return
+        }
+
+        lastFetchTime = Date()
+
+        Task {
+            await fetchAllData()
+        }
+    }
+
+    // MARK: - Secure Logging
+
+    private static let logger = Logger(subsystem: "com.oncall.notify", category: "api")
+}
+
+// MARK: - AccountService
+
+/// Service that manages API calls for a single account
+class AccountService {
+    private let account: Account
+    private let baseURL = "https://api.pagerduty.com"
+    private var currentUserId: String?
+
+    // Track previous state for change detection per account
+    private var previousIncidentStatuses: [String: IncidentStatus] = [:]
+    private var previousOnCallStatus: Bool = false
+    private var isFirstFetch: Bool = true
+
+    private static let iso8601Formatter = ISO8601DateFormatter()
+    private let futureScheduleLookupDays: Int = 30
+
+    private lazy var urlSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForResource = 60
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.waitsForConnectivity = false
+        config.httpShouldSetCookies = false
+        config.httpCookieAcceptPolicy = .never
+        return URLSession(configuration: config)
+    }()
+
+    init(account: Account) {
+        self.account = account
+    }
+
+    func updateAccount(_ account: Account) {
+        // Update if needed in future
+    }
+
+    // MARK: - Main Fetch
+
+    func fetchData() async throws -> AccountAlertSummary {
+        guard let apiToken = KeychainHelper.shared.getAPIToken(forAccountId: account.id) else {
+            throw OnCallError.noAPIToken
+        }
+
+        // First, get current user ID if we don't have it
+        if currentUserId == nil {
+            try await fetchCurrentUser(apiToken: apiToken)
+        }
+
+        // Fetch incidents and on-call status in parallel
+        async let incidents = fetchIncidents(apiToken: apiToken)
+        async let oncalls = fetchOncalls(apiToken: apiToken)
+
+        let (fetchedIncidents, fetchedOncalls) = try await (incidents, oncalls)
+
+        // Process and return summary
+        return processData(incidents: fetchedIncidents, oncalls: fetchedOncalls)
     }
 
     // MARK: - API Methods
 
     func acknowledgeIncident(incidentId: String) async throws {
+        guard let apiToken = KeychainHelper.shared.getAPIToken(forAccountId: account.id) else {
+            throw OnCallError.noAPIToken
+        }
+
         let endpoint = "/incidents/\(incidentId)"
         let url = try buildURL(endpoint: endpoint)
-        var request = try buildRequest(url: url)
+        var request = try buildRequest(url: url, apiToken: apiToken)
 
-        // Override method to PUT for acknowledgment
         request.httpMethod = "PUT"
 
-        // Create request body
         let requestBody = AcknowledgeIncidentRequest(
             incident: AcknowledgeIncidentRequest.AcknowledgeIncidentBody()
         )
@@ -147,13 +284,11 @@ class OnCallService: ObservableObject {
         encoder.keyEncodingStrategy = .convertToSnakeCase
         request.httpBody = try encoder.encode(requestBody)
 
-        let (data, response) = try await urlSession.data(for: request)
+        let (_, response) = try await urlSession.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OnCallError.invalidResponse
         }
-
-        logSecureResponse(statusCode: httpResponse.statusCode, bytes: data.count)
 
         guard httpResponse.statusCode == 200 else {
             if httpResponse.statusCode == 401 {
@@ -166,25 +301,33 @@ class OnCallService: ObservableObject {
                 throw OnCallError.acknowledgmentFailed(message: "Failed to acknowledge incident")
             }
         }
-
-        // Refresh data to get latest from server after a brief delay
-        try? await Task.sleep(nanoseconds: 1_000_000_000) // Wait 1 second
-        await fetchAllData()
     }
 
-    private func fetchCurrentUser() async throws {
+    func testConnection() async -> Bool {
+        guard let apiToken = KeychainHelper.shared.getAPIToken(forAccountId: account.id) else {
+            return false
+        }
+
+        do {
+            try await fetchCurrentUser(apiToken: apiToken)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    // MARK: - Private API Methods
+
+    private func fetchCurrentUser(apiToken: String) async throws {
         let endpoint = "/users/me"
         let url = try buildURL(endpoint: endpoint)
-        let request = try buildRequest(url: url)
+        let request = try buildRequest(url: url, apiToken: apiToken)
 
         let (data, response) = try await urlSession.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OnCallError.invalidResponse
         }
-
-        // Log response securely
-        logSecureResponse(statusCode: httpResponse.statusCode, bytes: data.count)
 
         guard httpResponse.statusCode == 200 else {
             if httpResponse.statusCode == 401 {
@@ -205,13 +348,12 @@ class OnCallService: ObservableObject {
         currentUserId = userResponse.user.id
     }
 
-    private func fetchIncidents() async throws -> [Incident] {
+    private func fetchIncidents(apiToken: String) async throws -> [Incident] {
         let endpoint = "/incidents"
         guard var components = URLComponents(string: baseURL + endpoint) else {
             throw OnCallError.invalidURL
         }
 
-        // Get incidents that are triggered or acknowledged
         components.queryItems = [
             URLQueryItem(name: "statuses[]", value: "triggered"),
             URLQueryItem(name: "statuses[]", value: "acknowledged"),
@@ -219,7 +361,6 @@ class OnCallService: ObservableObject {
             URLQueryItem(name: "sort_by", value: "created_at:desc")
         ]
 
-        // If we have a user ID, filter by current user
         if let userId = currentUserId {
             components.queryItems?.append(URLQueryItem(name: "user_ids[]", value: userId))
         }
@@ -228,15 +369,12 @@ class OnCallService: ObservableObject {
             throw OnCallError.invalidURL
         }
 
-        let request = try buildRequest(url: url)
+        let request = try buildRequest(url: url, apiToken: apiToken)
         let (data, response) = try await urlSession.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OnCallError.invalidResponse
         }
-
-        // Log response securely
-        logSecureResponse(statusCode: httpResponse.statusCode, bytes: data.count)
 
         guard httpResponse.statusCode == 200 else {
             if httpResponse.statusCode == 401 {
@@ -255,21 +393,23 @@ class OnCallService: ObservableObject {
         let decoder = JSONDecoder()
         let incidentsResponse = try decoder.decode(PagerDutyIncidentsResponse.self, from: data)
 
-        return incidentsResponse.incidents
+        // Tag incidents with account ID
+        return incidentsResponse.incidents.map { incident in
+            var taggedIncident = incident
+            taggedIncident.accountId = account.id
+            return taggedIncident
+        }
     }
 
-    private func fetchOncalls() async throws -> [Oncall] {
+    private func fetchOncalls(apiToken: String) async throws -> [Oncall] {
         let endpoint = "/oncalls"
         guard var components = URLComponents(string: baseURL + endpoint) else {
             throw OnCallError.invalidURL
         }
 
-        // Set time range to fetch current and future on-call schedules
-        // This allows us to show when the next shift starts
         let now = Date()
-        guard
-            let futureDate = Calendar.current.date(
-                byAdding: .day, value: futureScheduleLookupDays, to: now) else {
+        guard let futureDate = Calendar.current.date(
+            byAdding: .day, value: futureScheduleLookupDays, to: now) else {
             throw OnCallError.apiError(
                 technicalMessage: "Failed to calculate future date",
                 userMessage: "Unable to process schedule data")
@@ -286,7 +426,6 @@ class OnCallService: ObservableObject {
             URLQueryItem(name: "until", value: untilParam)
         ]
 
-        // Filter by current user if we have the ID
         if let userId = currentUserId {
             components.queryItems?.append(URLQueryItem(name: "user_ids[]", value: userId))
         }
@@ -295,15 +434,12 @@ class OnCallService: ObservableObject {
             throw OnCallError.invalidURL
         }
 
-        let request = try buildRequest(url: url)
+        let request = try buildRequest(url: url, apiToken: apiToken)
         let (data, response) = try await urlSession.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OnCallError.invalidResponse
         }
-
-        // Log response securely
-        logSecureResponse(statusCode: httpResponse.statusCode, bytes: data.count)
 
         guard httpResponse.statusCode == 200 else {
             if httpResponse.statusCode == 401 {
@@ -334,85 +470,56 @@ class OnCallService: ObservableObject {
         return url
     }
 
-    private func buildRequest(url: URL) throws -> URLRequest {
-        guard let apiToken = KeychainHelper.shared.getAPIToken() else {
-            throw OnCallError.noAPIToken
-        }
-
-        logSecureRequest(url)
-
+    private func buildRequest(url: URL, apiToken: String) throws -> URLRequest {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-
-        // Set headers - API token will not be logged due to secure logging
         request.setValue("Token token=\(apiToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        // Prevent caching of sensitive requests
         request.cachePolicy = .reloadIgnoringLocalCacheData
-
         return request
     }
 
-    private func processData(incidents: [Incident], oncalls: [Oncall]) async {
-        var summary = AlertSummary()
-
-        // Process incidents
-        summary.incidents = incidents
-        summary.totalAlerts = incidents.count
-        summary.acknowledgedCount = incidents.count { $0.status == .acknowledged }
-        summary.unacknowledgedCount = incidents.count { $0.status == .triggered }
-
+    private func processData(incidents: [Incident], oncalls: [Oncall]) -> AccountAlertSummary {
         // Process on-call status
         let now = Date()
         var isCurrentlyOnCall = false
-        var nextShift: Date?
 
         for oncall in oncalls {
-            // Check if currently on call
             if let startString = oncall.start,
                let endString = oncall.end,
                let startDate = Self.iso8601Formatter.date(from: startString),
                let endDate = Self.iso8601Formatter.date(from: endString) {
-                // Currently on call
                 if startDate <= now, endDate > now {
                     isCurrentlyOnCall = true
-                }
-
-                // Find next shift
-                if startDate > now {
-                    if let currentNextShift = nextShift {
-                        if startDate < currentNextShift {
-                            nextShift = startDate
-                        }
-                    } else {
-                        nextShift = startDate
-                    }
+                    break
                 }
             }
         }
 
-        summary.isOnCall = isCurrentlyOnCall
-        summary.nextOnCallShift = nextShift
-
         // Detect changes and send notifications (skip on first fetch)
         if !isFirstFetch {
-            detectAndNotifyChanges(
-                incidents: incidents, isOnCall: isCurrentlyOnCall, nextShift: nextShift)
+            detectAndNotifyChanges(incidents: incidents, isOnCall: isCurrentlyOnCall)
         }
 
         // Update previous state
-        let newIncidentStatuses = Dictionary(uniqueKeysWithValues: incidents.map { ($0.id, $0.status) })
-        previousIncidentStatuses = newIncidentStatuses
+        previousIncidentStatuses = Dictionary(uniqueKeysWithValues: incidents.map { ($0.id, $0.status) })
         previousOnCallStatus = isCurrentlyOnCall
         isFirstFetch = false
 
-        alertSummary = summary
+        // Return summary
+        return AccountAlertSummary(
+            accountId: account.id,
+            accountName: account.name,
+            totalAlerts: incidents.count,
+            acknowledgedCount: incidents.filter { $0.status == .acknowledged }.count,
+            unacknowledgedCount: incidents.filter { $0.status == .triggered }.count,
+            isOnCall: isCurrentlyOnCall,
+            incidents: incidents
+        )
     }
 
-    private func detectAndNotifyChanges(incidents: [Incident], isOnCall: Bool, nextShift: Date?) {
-        // Build current incident status map
+    private func detectAndNotifyChanges(incidents: [Incident], isOnCall: Bool) {
         let currentIncidentStatuses = Dictionary(uniqueKeysWithValues: incidents.map { ($0.id, $0.status) })
         let currentIncidentIds = Set(currentIncidentStatuses.keys)
         let previousIncidentIds = Set(previousIncidentStatuses.keys)
@@ -420,127 +527,38 @@ class OnCallService: ObservableObject {
         // Detect new incidents and status transitions
         for incident in incidents {
             if let previousStatus = previousIncidentStatuses[incident.id] {
-                // Existing incident - check for status transition
                 if previousStatus != incident.status {
-                    // Status changed
                     if previousStatus == .triggered, incident.status == .acknowledged {
-                        // Incident was acknowledged
                         NotificationService.shared.removeIncidentNotification(incidentId: incident.id)
                         NotificationService.shared.sendIncidentAcknowledgedNotification(incident: incident)
                     } else if incident.status == .resolved {
-                        // Incident was resolved
                         NotificationService.shared.sendIncidentResolvedNotification(incident: incident)
                         NotificationService.shared.removeIncidentNotification(incidentId: incident.id)
                     }
                 }
             } else {
-                // New incident (never seen before)
+                // New incident
                 if incident.status == .triggered {
                     NotificationService.shared.sendIncidentNotification(incident: incident)
                 } else if incident.status == .acknowledged {
-                    // Newly discovered incident that's already acknowledged
                     NotificationService.shared.sendIncidentAcknowledgedNotification(incident: incident)
                 }
             }
         }
 
-        // Detect resolved incidents (no longer in current list)
+        // Detect resolved incidents
         let resolvedIncidentIds = previousIncidentIds.subtracting(currentIncidentIds)
         for incidentId in resolvedIncidentIds {
-            // Remove the notification for resolved incidents
             NotificationService.shared.removeIncidentNotification(incidentId: incidentId)
         }
 
         // Detect on-call status changes
         if isOnCall != previousOnCallStatus {
             if isOnCall {
-                // Just went on-call
-                NotificationService.shared.sendOnCallStartNotification(nextShift: nextShift)
+                NotificationService.shared.sendOnCallStartNotification(nextShift: nil)
             } else {
-                // Just went off-call
-                NotificationService.shared.sendOnCallEndNotification(nextShift: nextShift)
+                NotificationService.shared.sendOnCallEndNotification(nextShift: nil)
             }
         }
-    }
-
-    // MARK: - Public Helper Methods
-
-    func refreshData() {
-        // Prevent rapid refresh spam
-        if let lastFetch = lastFetchTime,
-           Date().timeIntervalSince(lastFetch) < minimumFetchInterval {
-            Self.logger.debug("Refresh throttled - minimum interval not met")
-            return
-        }
-
-        // Don't allow refresh during backoff period
-        guard !isBackingOff else {
-            Self.logger.debug("Refresh blocked - in backoff period")
-            return
-        }
-
-        Task {
-            await fetchAllData()
-        }
-    }
-
-    func testConnection() async -> Bool {
-        do {
-            try await fetchCurrentUser()
-            return true
-        } catch {
-            lastError = error
-            return false
-        }
-    }
-
-    // MARK: - Rate Limiting Helpers
-
-    private func handleFetchSuccess() {
-        consecutiveErrors = 0
-        lastFetchTime = Date()
-        isBackingOff = false
-    }
-
-    private func handleFetchError(_: Error) {
-        consecutiveErrors += 1
-        lastFetchTime = Date()
-
-        // Exponential backoff on repeated errors
-        if consecutiveErrors >= maxRetryCount {
-            isBackingOff = true
-            let backoffTime = min(pow(2.0, Double(consecutiveErrors - maxRetryCount)) * 30, 300)
-
-            Self.logger.warning(
-                "Entering backoff period for \(backoffTime, privacy: .public) seconds after \(self.consecutiveErrors, privacy: .public) consecutive errors"
-            )
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + backoffTime) { [weak self] in
-                guard let self else { return }
-                isBackingOff = false
-                consecutiveErrors = max(0, consecutiveErrors - 1)
-                Self.logger.info("Backoff period ended, resuming normal operation")
-            }
-        }
-    }
-
-    // MARK: - Secure Logging
-
-    private static let logger = Logger(subsystem: "com.oncall.notify", category: "api")
-
-    private func logSecureRequest(_ url: URL) {
-        #if DEBUG
-        Self.logger.debug("API Request: \(url.path, privacy: .public)")
-        #else
-        Self.logger.info("API Request initiated")
-        #endif
-    }
-
-    private func logSecureResponse(statusCode: Int, bytes: Int) {
-        #if DEBUG
-        Self.logger.debug("API Response: Status \(statusCode), \(bytes) bytes")
-        #else
-        Self.logger.info("API Response received")
-        #endif
     }
 }

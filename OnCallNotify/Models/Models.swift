@@ -32,6 +32,7 @@ struct Incident: Codable, Identifiable {
     let assignments: [Assignment]?
     let acknowledgements: [Acknowledgement]?
     let lastStatusChangeAt: String?
+    var accountId: String? // Added for multi-account support
 
     enum CodingKeys: String, CodingKey {
         case id, type, summary, status, urgency, title
@@ -41,6 +42,7 @@ struct Incident: Codable, Identifiable {
         case incidentNumber = "incident_number"
         case service, assignments, acknowledgements
         case lastStatusChangeAt = "last_status_change_at"
+        // accountId is not in API response, set programmatically
     }
 }
 
@@ -157,6 +159,40 @@ struct UserDetail: Codable {
     }
 }
 
+// MARK: - Multi-Account Models
+
+enum ServiceType: String, Codable, CaseIterable {
+    case pagerDuty = "PagerDuty"
+    // Future services:
+    // case atlassianCompass = "Atlassian Compass"
+    // case jiraServiceManagement = "Jira Service Management"
+    // case victorOps = "VictorOps"
+    // case alertmanager = "Alertmanager"
+    // case customWebhook = "Custom Webhook"
+
+    var displayName: String {
+        rawValue
+    }
+}
+
+struct Account: Codable, Identifiable, Equatable {
+    let id: String // UUID
+    var name: String // User-friendly name
+    let serviceType: ServiceType
+    var isEnabled: Bool
+
+    init(id: String = UUID().uuidString, name: String, serviceType: ServiceType, isEnabled: Bool = true) {
+        self.id = id
+        self.name = name
+        self.serviceType = serviceType
+        self.isEnabled = isEnabled
+    }
+
+    static func == (lhs: Account, rhs: Account) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
 // MARK: - App State Models
 
 struct AlertSummary {
@@ -166,6 +202,7 @@ struct AlertSummary {
     var isOnCall: Bool
     var nextOnCallShift: Date?
     var incidents: [Incident]
+    var accountSummaries: [String: AccountAlertSummary] // accountId -> summary
 
     init() {
         totalAlerts = 0
@@ -174,7 +211,18 @@ struct AlertSummary {
         isOnCall = false
         nextOnCallShift = nil
         incidents = []
+        accountSummaries = [:]
     }
+}
+
+struct AccountAlertSummary {
+    let accountId: String
+    let accountName: String
+    var totalAlerts: Int
+    var acknowledgedCount: Int
+    var unacknowledgedCount: Int
+    var isOnCall: Bool
+    var incidents: [Incident]
 }
 
 // MARK: - Acknowledge Request/Response Models

@@ -302,11 +302,24 @@ struct IncidentRowView: View {
                         .fontWeight(.medium)
                         .lineLimit(2)
 
-                    // Service
-                    if let service = incident.service {
-                        Text(service.summary)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                    // Service and Account
+                    HStack(spacing: 4) {
+                        if let service = incident.service {
+                            Text(service.summary)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        // Account badge (if available)
+                        if let accountId = incident.accountId,
+                           let account = getAccount(for: accountId) {
+                            Text("•")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(account.name)
+                                .font(.caption)
+                                .foregroundColor(.blue)
+                        }
                     }
 
                     // Time
@@ -388,18 +401,31 @@ struct IncidentRowView: View {
     }
 
     private func acknowledgeIncident() {
+        // Make sure we have an account ID
+        guard let accountId = incident.accountId else {
+            acknowledgmentError = "Unable to identify account for this incident"
+            return
+        }
+
         isAcknowledging = true
         acknowledgmentError = nil
 
         Task {
             do {
-                try await OnCallService.shared.acknowledgeIncident(incidentId: incident.id)
+                try await OnCallService.shared.acknowledgeIncident(
+                    incidentId: incident.id,
+                    accountId: accountId
+                )
                 // Success - the service will refresh and update the UI
             } catch {
                 acknowledgmentError = error.localizedDescription
             }
             isAcknowledging = false
         }
+    }
+
+    private func getAccount(for accountId: String) -> Account? {
+        KeychainHelper.shared.getAccounts().first { $0.id == accountId }
     }
 
     private func formatIncidentTime(_ dateString: String) -> String {
