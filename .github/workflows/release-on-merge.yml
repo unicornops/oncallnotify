@@ -64,9 +64,6 @@ jobs:
             -t full_hash \
             > GITHUB_CHANGELOG.md
 
-      - name: Select Xcode version
-        run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
-
       - name: Show build environment
         run: |
           echo "Xcode version:"
