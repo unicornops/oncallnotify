@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.15.2 - 2025-12-16
+#### Bug Fixes
+- Get app info step in release - (52f754b) - Rob Lazzurs
+
+- - -
+
 ## v0.15.1 - 2025-12-16
 #### Bug Fixes
 - Duplicate step in release - (3ff28d1) - Rob Lazzurs
