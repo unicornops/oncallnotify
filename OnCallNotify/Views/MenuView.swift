@@ -135,8 +135,17 @@ struct MenuView: View {
 
     private var alertSummarySection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Active Alerts", systemImage: "exclamationmark.triangle.fill")
-                .font(.headline)
+            HStack {
+                Label("Active Alerts", systemImage: "exclamationmark.triangle.fill")
+                    .font(.headline)
+
+                Spacer()
+
+                // Acknowledge All button (only show when there are unacknowledged alerts)
+                if service.alertSummary.unacknowledgedCount > 0 {
+                    AcknowledgeAllButton()
+                }
+            }
 
             HStack(spacing: 20) {
                 // Total alerts
@@ -276,6 +285,60 @@ struct MenuView: View {
 
     private func quitApp() {
         NSApplication.shared.terminate(nil)
+    }
+}
+
+// MARK: - Acknowledge All Button
+
+struct AcknowledgeAllButton: View {
+    @ObservedObject var service = OnCallService.shared
+    @State private var isAcknowledging = false
+    @State private var acknowledgmentError: String?
+
+    var body: some View {
+        Button(
+            action: {
+                acknowledgeAll()
+            },
+            label: {
+                if isAcknowledging {
+                    HStack(spacing: 4) {
+                        ProgressView()
+                            .scaleEffect(0.6)
+                            .frame(width: 12, height: 12)
+                        Text("Acknowledging...")
+                            .font(.caption)
+                    }
+                } else {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.caption)
+                        Text("Acknowledge All")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                    }
+                }
+            })
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .tint(.orange)
+            .disabled(isAcknowledging)
+            .help("Acknowledge all unacknowledged incidents")
+    }
+
+    private func acknowledgeAll() {
+        isAcknowledging = true
+        acknowledgmentError = nil
+
+        Task {
+            do {
+                try await service.acknowledgeAllIncidents()
+                // Success - the service will refresh and update the UI
+            } catch {
+                acknowledgmentError = error.localizedDescription
+            }
+            isAcknowledging = false
+        }
     }
 }
 
