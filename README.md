@@ -20,6 +20,7 @@ plans to add support for additional on-call and incident management platforms in
 - ✅ **Quick Acknowledge**: Acknowledge unacknowledged incidents with a single click
 - 👤 **On-Call Status**: Visual indicator showing if you're currently on-call
 - 📅 **Next Shift Information**: See when your next on-call shift starts
+- 🔐 **Multi-Account Support**: Monitor multiple accounts across services simultaneously
 - 🔒 **Secure Storage**: API tokens stored securely in macOS Keychain
 - 🔄 **Auto-refresh**: Automatically updates every 60 seconds
 - 🎨 **Native macOS UI**: Built with SwiftUI for a native look and feel
@@ -68,11 +69,13 @@ Click the menu bar icon to see:
 
 ### Settings Window
 
-Configure your service API tokens with:
+Manage your accounts with:
 
-- Secure token input
-- Test connection functionality
-- Token management (save, load, delete)
+- Add multiple accounts per service type
+- Enable/disable accounts individually
+- Test connection for each account
+- Secure token input and storage
+- Account management (add, edit, delete)
 
 ## Requirements
 
@@ -124,12 +127,23 @@ Pre-built releases will be available in the GitHub Releases section.
 1. Launch OnCall Notify (it will appear in your menu bar)
 2. Click the menu bar icon
 3. Click the gear icon (⚙️) to open Settings
-4. Paste your API token in the "API Token (PagerDuty)" field
-5. Click "Save Token"
-6. Click "Test Connection" to verify the token works
-7. Close the Settings window
+4. Click "Add Account" to add your first account
+5. Enter a friendly name for the account (e.g., "Work PagerDuty")
+6. Select the service type (currently only PagerDuty is supported)
+7. Paste your API token
+8. Click "Add Account"
+9. Test the connection using the network icon
+10. Add additional accounts as needed by repeating steps 4-9
 
-The app will now automatically fetch and display your alerts and on-call status.
+The app will now automatically fetch and display your alerts and on-call status from all enabled accounts.
+
+### Managing Multiple Accounts
+
+- **Add Account**: Click "Add Account" to add additional accounts
+- **Enable/Disable**: Click the checkmark icon to enable or disable an account
+- **Test Connection**: Click the network icon to verify the account credentials
+- **Delete Account**: Click the trash icon to remove an account
+- **Account Badges**: Incidents in the menu show which account they belong to
 
 ## Usage
 

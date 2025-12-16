@@ -2,6 +2,15 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [Unreleased]
+#### Features
+- Add multi-account support for monitoring multiple accounts simultaneously
+- Add account management UI (add, edit, delete, enable/disable accounts)
+- Add account badges to incidents showing which account they belong to
+- Add per-account connection testing
+- Migrate from single-account to multi-account storage automatically
+
+- - -
 ## v0.16.0 - 2025-12-16
 #### Features
 - Change license to GPLv3 - (70c13c2) - Rob Lazzurs
