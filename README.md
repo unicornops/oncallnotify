@@ -187,31 +187,13 @@ The application uses the following PagerDuty API v2 endpoints:
 - ✅ Hardened Runtime enabled
 - ✅ No third-party dependencies (reduced supply chain risk)
 
-### Security Audit & Improvements
-
-A comprehensive security audit has been completed (December 2024). The application has a **current security
-rating of 6.5/10** with a target of 9.0/10 after implementing recommended improvements.
-
-**📋 For complete security details, see:**
-
-- **[SECURITY.md](SECURITY.md)** - Full security audit report with implementation checklist
-- **[SECURITY_QUICKREF.md](SECURITY_QUICKREF.md)** - Quick reference guide for developers
-
-**Critical improvements in progress:**
-
-- 🔄 Enhanced API token handling in UI
-- 🔄 App Sandbox implementation
-- 🔄 Certificate pinning for API endpoints
-- 🔄 Input validation and sanitization
-- 🔄 Rate limiting and exponential backoff
-
 ### Reporting Security Issues
 
 If you discover a security vulnerability, please report it responsibly:
 
 - **DO NOT** open a public GitHub issue
 - Use GitHub Security Advisories for private reporting
-- Or email: <security@oncall.notify> (coming soon)
+- Or email: <rob@unicornops.ie>
 
 We take security seriously and will respond promptly to all reports.
 
@@ -372,14 +354,7 @@ This project includes comprehensive documentation:
 
 - **[README.md](README.md)** - You are here! Main documentation and overview
 - **[AGENTS.md](AGENTS.md)** - Guidelines for AI coding agents (follows [agents.md](https://agents.md/) format)
-- **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes
-- **[FEATURES.md](FEATURES.md)** - Detailed technical feature documentation
-- **[SECURITY.md](SECURITY.md)** - 🔒 Complete security audit and implementation checklist
-- **[SECURITY_QUICKREF.md](SECURITY_QUICKREF.md)** - 🔒 Quick reference for security fixes
-- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Comprehensive problem-solving guide
-- **[FIXES.md](FIXES.md)** - Quick fixes for common warnings and issues
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** - Development and contribution guidelines
-- **[PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md)** - Complete project summary
 - **[CHANGELOG.md](CHANGELOG.md)** - Version history and release notes
 
 ## Support
