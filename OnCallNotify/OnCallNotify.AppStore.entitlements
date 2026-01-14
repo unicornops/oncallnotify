@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- App Sandbox (Required for Mac App Store) -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+
+    <!-- Network access for API calls to PagerDuty and other services -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+
+    <!-- No incoming connections needed -->
+    <key>com.apple.security.network.server</key>
+    <false/>
+
+    <!-- Keychain access for storing API tokens -->
+    <!-- Note: App Sandbox restricts keychain to app-specific items -->
+    <!-- No additional entitlement needed - automatic with sandbox -->
+
+    <!-- No user-selected files needed -->
+    <key>com.apple.security.files.user-selected.read-only</key>
+    <false/>
+
+    <!-- No downloads folder access needed -->
+    <key>com.apple.security.files.downloads.read-write</key>
+    <false/>
+
+    <!-- No temporary exception entitlements -->
+    <!-- Keep sandbox as restrictive as possible for App Store approval -->
+</dict>
+</plist>

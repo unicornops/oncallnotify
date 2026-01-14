@@ -128,8 +128,14 @@ class StatusBarController: ObservableObject {
         // Add counts if there are any alerts
         if summary.totalAlerts > 0 {
             let countString = NSMutableAttributedString(string: " \(summary.totalAlerts)")
-            countString.addAttribute(.foregroundColor, value: iconColor, range: NSRange(location: 0, length: countString.length))
-            countString.addAttribute(.font, value: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium), range: NSRange(location: 0, length: countString.length))
+            countString.addAttribute(
+                .foregroundColor,
+                value: iconColor,
+                range: NSRange(location: 0, length: countString.length))
+            countString.addAttribute(
+                .font,
+                value: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium),
+                range: NSRange(location: 0, length: countString.length))
             attributedTitle.append(countString)
         }
 
