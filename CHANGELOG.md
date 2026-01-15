@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.18.1 - 2026-01-15
+#### Bug Fixes
+- another empty commit to fix build - (7a6f5f8) - Rob Lazzurs
+
+- - -
+
 ## v0.18.0 - 2026-01-15
 #### Features
 - Empty commit to fix release - (c2a989d) - Rob Lazzurs
