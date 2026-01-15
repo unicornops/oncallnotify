@@ -44,7 +44,8 @@ class NotificationService: NSObject {
                 Self.logger.warning("Notification permission denied")
             }
         } catch {
-            Self.logger.error("Error requesting notification permission: \(error.localizedDescription, privacy: .public)")
+            Self.logger.error(
+                "Error requesting notification permission: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -78,7 +79,8 @@ class NotificationService: NSObject {
 
         center.add(request) { error in
             if let error {
-                Self.logger.error("Error sending incident notification: \(error.localizedDescription, privacy: .public)")
+                Self.logger.error(
+                    "Error sending incident notification: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -103,7 +105,8 @@ class NotificationService: NSObject {
 
         center.add(request) { error in
             if let error {
-                Self.logger.error("Error sending acknowledgment notification: \(error.localizedDescription, privacy: .public)")
+                Self.logger.error(
+                    "Error sending acknowledgment notification: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -128,7 +131,8 @@ class NotificationService: NSObject {
 
         center.add(request) { error in
             if let error {
-                Self.logger.error("Error sending resolution notification: \(error.localizedDescription, privacy: .public)")
+                Self.logger.error(
+                    "Error sending resolution notification: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -155,7 +159,8 @@ class NotificationService: NSObject {
 
         center.add(request) { error in
             if let error {
-                Self.logger.error("Error sending on-call start notification: \(error.localizedDescription, privacy: .public)")
+                Self.logger.error(
+                    "Error sending on-call start notification: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -180,7 +185,8 @@ class NotificationService: NSObject {
 
         center.add(request) { error in
             if let error {
-                Self.logger.error("Error sending on-call end notification: \(error.localizedDescription, privacy: .public)")
+                Self.logger.error(
+                    "Error sending on-call end notification: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -247,7 +253,8 @@ extension NotificationService: UNUserNotificationCenterDelegate {
             Self.logger.info("Opening incident URL from notification: \(scheme, privacy: .public)://...")
             NSWorkspace.shared.open(url)
         } else if let urlString = userInfo["url"] as? String {
-            Self.logger.warning("Ignoring notification URL with invalid or missing scheme: \(urlString, privacy: .public)")
+            Self.logger.warning(
+                "Ignoring notification URL with invalid or missing scheme: \(urlString, privacy: .public)")
         }
 
         completionHandler()

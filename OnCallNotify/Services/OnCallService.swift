@@ -512,7 +512,10 @@ class OnCallService: ObservableObject {
             let backoffTime = min(pow(2.0, Double(consecutiveErrors - maxRetryCount)) * 30, 300)
 
             Self.logger.warning(
-                "Entering backoff period for \(backoffTime, privacy: .public) seconds after \(self.consecutiveErrors, privacy: .public) consecutive errors"
+                """
+                Entering backoff period for \(backoffTime, privacy: .public) seconds after \
+                \(self.consecutiveErrors, privacy: .public) consecutive errors
+                """
             )
 
             DispatchQueue.main.asyncAfter(deadline: .now() + backoffTime) { [weak self] in
