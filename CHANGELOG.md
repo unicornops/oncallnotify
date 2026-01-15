@@ -10,6 +10,14 @@ All notable changes to this project will be documented in this file. See [conven
 
 - - -
 
+## v0.17.0 - 2026-01-15
+#### Features
+- Adding App Store build - (fd52ab9) - Rob Lazzurs
+#### Chores
+- (**docs**) Simple README updates - (c9c5f77) - Rob Lazzurs
+
+- - -
+
 ## v0.16.0 - 2025-12-16
 #### Features
 - Change license to GPLv3 - (70c13c2) - Rob Lazzurs
