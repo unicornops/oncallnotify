@@ -2,6 +2,15 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.19.0 - 2026-01-15
+#### Features
+- Updating release to use github app - (466ab2c) - Rob Lazzurs
+#### Bug Fixes
+- Fix the checkout actions ref - (1952473) - Rob Lazzurs
+- Fixing build from a PR - (4c488a3) - Rob Lazzurs
+
+- - -
+
 ## v0.18.1 - 2026-01-15
 #### Bug Fixes
 - another empty commit to fix build - (7a6f5f8) - Rob Lazzurs
