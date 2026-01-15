@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.18.0 - 2026-01-15
+#### Features
+- Empty commit to fix release - (c2a989d) - Rob Lazzurs
+
+- - -
+
 ## v0.17.0 - 2026-01-15
 #### Features
 - Adding App Store build - (fd52ab9) - Rob Lazzurs
