@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.19.1 - 2026-01-15
+#### Bug Fixes
+- Stop trying to build tags. - (e329042) - Rob Lazzurs
+
+- - -
+
 ## v0.19.0 - 2026-01-15
 #### Features
 - Updating release to use github app - (466ab2c) - Rob Lazzurs
