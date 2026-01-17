@@ -105,12 +105,24 @@ jobs:
                   cp "$PROFILE_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/"$PROFILE_UUID".provisionprofile
 
                   # Verify certificates
-                  echo "Installed certificates:"
+                  echo "Installed codesigning certificates:"
                   security find-identity -v -p codesigning "$KEYCHAIN_NAME"
 
+                  echo ""
+                  echo "All installed identities:"
+                  security find-identity -v "$KEYCHAIN_NAME"
+
                   # Extract identities
+                  # Application certificate uses codesigning policy
                   APP_IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_NAME" | grep "3rd Party Mac Developer Application" | head -1 | sed -n 's/.*"\(.*\)"/\1/p')
-                  INSTALLER_IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_NAME" | grep "3rd Party Mac Developer Installer" | head -1 | sed -n 's/.*"\(.*\)"/\1/p')
+
+                  # Installer certificate is NOT a codesigning cert - search all identities
+                  INSTALLER_IDENTITY=$(security find-identity -v "$KEYCHAIN_NAME" | grep "3rd Party Mac Developer Installer" | head -1 | sed -n 's/.*"\(.*\)"/\1/p')
+
+                  # Also try "Mac Installer Distribution" (newer naming)
+                  if [ -z "$INSTALLER_IDENTITY" ]; then
+                    INSTALLER_IDENTITY=$(security find-identity -v "$KEYCHAIN_NAME" | grep "Mac Installer Distribution" | head -1 | sed -n 's/.*"\(.*\)"/\1/p')
+                  fi
 
                   if [ -z "$APP_IDENTITY" ]; then
                     echo "Error: App Store Application certificate not found"
@@ -119,6 +131,7 @@ jobs:
 
                   if [ -z "$INSTALLER_IDENTITY" ]; then
                     echo "Error: App Store Installer certificate not found"
+                    echo "Expected certificate named '3rd Party Mac Developer Installer' or 'Mac Installer Distribution'"
                     exit 1
                   fi
 
