@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.21.0 - 2026-01-17
+#### Features
+- Add debugging to app store release action. - (65b9198) - Rob Lazzurs
+
+- - -
+
 ## v0.20.0 - 2026-01-17
 #### Features
 - Update app store release. - (d2c9302) - Rob Lazzurs
