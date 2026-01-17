@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.22.0 - 2026-01-17
+#### Features
+- Updating the bundle ID. - (8d11beb) - Rob Lazzurs
+
+- - -
+
 ## v0.21.0 - 2026-01-17
 #### Features
 - Add debugging to app store release action. - (65b9198) - Rob Lazzurs
