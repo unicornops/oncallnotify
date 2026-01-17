@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.20.0 - 2026-01-17
+#### Features
+- Update app store release. - (d2c9302) - Rob Lazzurs
+
+- - -
+
 ## v0.19.1 - 2026-01-15
 #### Bug Fixes
 - Stop trying to build tags. - (e329042) - Rob Lazzurs
