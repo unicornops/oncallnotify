@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.22.1 - 2026-01-19
+#### Bug Fixes
+- Add bundle ID - (f7c0452) - Rob Lazzurs
+
+- - -
+
 ## v0.22.0 - 2026-01-17
 #### Features
 - Updating the bundle ID. - (8d11beb) - Rob Lazzurs
