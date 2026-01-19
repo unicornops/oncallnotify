@@ -175,6 +175,7 @@ jobs:
             - name: Export for App Store
               env:
                   TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+                  BUNDLE_ID: ${{ vars.BUNDLE_ID || 'ie.unicornops.oncallnotify' }}
               run: |
                   echo "Exporting for App Store..."
 
@@ -185,17 +186,20 @@ jobs:
                   <plist version="1.0">
                   <dict>
                       <key>method</key>
-                      <string>app-store</string>
+                      <string>app-store-connect</string>
                       <key>teamID</key>
                       <string>$TEAM_ID</string>
                       <key>uploadSymbols</key>
                       <true/>
-                      <key>uploadBitcode</key>
-                      <false/>
                       <key>signingCertificate</key>
                       <string>3rd Party Mac Developer Application</string>
                       <key>installerSigningCertificate</key>
                       <string>3rd Party Mac Developer Installer</string>
+                      <key>provisioningProfiles</key>
+                      <dict>
+                          <key>$BUNDLE_ID</key>
+                          <string>OnCallNotify App Store</string>
+                      </dict>
                   </dict>
                   </plist>
                   EOF
