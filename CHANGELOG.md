@@ -2,6 +2,85 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.22.3 - 2026-01-22
+#### Bug Fixes
+- Fix sandboxing - (26cf22f) - Rob Lazzurs
+
+- - -
+
+## v0.22.2 - 2026-01-19
+#### Bug Fixes
+- Update App Store login - (54f1c0f) - Rob Lazzurs
+
+- - -
+
+## v0.22.1 - 2026-01-19
+#### Bug Fixes
+- Add bundle ID - (f7c0452) - Rob Lazzurs
+
+- - -
+
+## v0.22.0 - 2026-01-17
+#### Features
+- Updating the bundle ID. - (8d11beb) - Rob Lazzurs
+
+- - -
+
+## v0.21.0 - 2026-01-17
+#### Features
+- Add debugging to app store release action. - (65b9198) - Rob Lazzurs
+
+- - -
+
+## v0.20.0 - 2026-01-17
+#### Features
+- Update app store release. - (d2c9302) - Rob Lazzurs
+
+- - -
+
+## v0.19.1 - 2026-01-15
+#### Bug Fixes
+- Stop trying to build tags. - (e329042) - Rob Lazzurs
+
+- - -
+
+## v0.19.0 - 2026-01-15
+#### Features
+- Updating release to use github app - (466ab2c) - Rob Lazzurs
+#### Bug Fixes
+- Fix the checkout actions ref - (1952473) - Rob Lazzurs
+- Fixing build from a PR - (4c488a3) - Rob Lazzurs
+
+- - -
+
+## v0.18.1 - 2026-01-15
+#### Bug Fixes
+- another empty commit to fix build - (7a6f5f8) - Rob Lazzurs
+
+- - -
+
+## v0.18.0 - 2026-01-15
+#### Features
+- Empty commit to fix release - (c2a989d) - Rob Lazzurs
+
+- - -
+
+## v0.17.0 - 2026-01-15
+#### Features
+- Adding App Store build - (fd52ab9) - Rob Lazzurs
+#### Chores
+- (**docs**) Simple README updates - (c9c5f77) - Rob Lazzurs
+
+- - -
+
+## v0.17.0 - 2026-01-15
+#### Features
+- Adding App Store build - (fd52ab9) - Rob Lazzurs
+#### Chores
+- (**docs**) Simple README updates - (c9c5f77) - Rob Lazzurs
+
+- - -
+
 ## v0.16.0 - 2025-12-16
 #### Features
 - Change license to GPLv3 - (70c13c2) - Rob Lazzurs
