@@ -42,7 +42,8 @@ jobs:
           # Remove 'v' prefix if present
           VERSION="${VERSION#v}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Building version: $VERSION"
+          echo "build_number=${{ github.run_number }}" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION (build ${{ github.run_number }})"
 
       - name: Validate App Store entitlements
         run: |
@@ -213,11 +214,14 @@ jobs:
           rm -rf build/AppStore
 
           # Archive
+          # Use github.run_number as the build number to ensure it's unique and incrementing
           xcodebuild archive \
             -project OnCallNotify.xcodeproj \
             -scheme OnCallNotify \
             -archivePath build/AppStore/OnCallNotify.xcarchive \
             -configuration Release \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            MARKETING_VERSION=${{ steps.version.outputs.version }} \
             CODE_SIGN_IDENTITY="$APP_SIGNING_IDENTITY" \
             CODE_SIGN_STYLE=Manual \
             PROVISIONING_PROFILE_SPECIFIER="OnCallNotify App Store" \
@@ -335,10 +339,11 @@ jobs:
       - name: Build summary
         run: |
           VERSION="${{ steps.version.outputs.version }}"
+          BUILD_NUMBER="${{ steps.version.outputs.build_number }}"
 
           echo "## App Store Build Summary 🎉" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version**: $VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: $VERSION (build $BUILD_NUMBER)" >> $GITHUB_STEP_SUMMARY
           echo "- **Package**: OnCallNotify.pkg" >> $GITHUB_STEP_SUMMARY
           echo "- **Xcode**: $(xcodebuild -version | head -n 1)" >> $GITHUB_STEP_SUMMARY
           echo "- **Swift**: $(swift --version | head -n 1)" >> $GITHUB_STEP_SUMMARY
