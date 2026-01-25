@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.22.5 - 2026-01-25
+#### Bug Fixes
+- skip release workflow when triggered by version bump commits - (55eeaee) - Rob Lazzurs
+
+- - -
+
 ## v0.22.4 - 2026-01-23
 #### Bug Fixes
 - Use auto-incrementing build number for App Store uploads** - (0f73571) - Rob Lazzurs
