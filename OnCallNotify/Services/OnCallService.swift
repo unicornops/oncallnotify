@@ -449,7 +449,7 @@ class AccountService {
 
         let now = Date()
         guard let futureDate = Calendar.current.date(
-            byAdding: .day, value: futureScheduleLookupDays, to: now) else {
+                byAdding: .day, value: futureScheduleLookupDays, to: now) else {
             throw OnCallError.apiError(
                 technicalMessage: "Failed to calculate future date",
                 userMessage: "Unable to process schedule data")

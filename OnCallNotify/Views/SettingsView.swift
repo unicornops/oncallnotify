@@ -244,7 +244,7 @@ struct AccountRowView: View {
         }
     }
 
-    private func testConnection() {
+    func testConnection() {
         isTestingConnection = true
         connectionTestResult = nil
 
