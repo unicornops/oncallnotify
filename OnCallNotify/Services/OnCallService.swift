@@ -162,6 +162,42 @@ class OnCallService: ObservableObject {
 
     // MARK: - API Methods
 
+    func acknowledgeAllIncidents() async throws {
+        // Get all triggered incidents
+        let triggeredIncidents = alertSummary.incidents.filter { $0.status == .triggered }
+
+        guard !triggeredIncidents.isEmpty else {
+            return
+        }
+
+        // Acknowledge each incident without refreshing after each one
+        var errors: [Error] = []
+        for incident in triggeredIncidents {
+            guard let accountId = incident.accountId else {
+                continue
+            }
+
+            guard let service = accountServices[accountId] else {
+                continue
+            }
+
+            do {
+                try await service.performAcknowledgment(incidentId: incident.id)
+            } catch {
+                errors.append(error)
+            }
+        }
+
+        // If any errors occurred, throw the first one
+        if let firstError = errors.first {
+            throw firstError
+        }
+
+        // Refresh data once at the end to get latest from server
+        try? await Task.sleep(nanoseconds: 1_000_000_000) // Wait 1 second
+        await fetchAllData()
+    }
+
     func acknowledgeIncident(incidentId: String, accountId: String) async throws {
         guard let service = accountServices[accountId] else {
             throw OnCallError.apiError(
@@ -266,6 +302,10 @@ class AccountService {
     // MARK: - API Methods
 
     func acknowledgeIncident(incidentId: String) async throws {
+        try await performAcknowledgment(incidentId: incidentId)
+    }
+
+    func performAcknowledgment(incidentId: String) async throws {
         guard let apiToken = KeychainHelper.shared.getAPIToken(forAccountId: account.id) else {
             throw OnCallError.noAPIToken
         }
