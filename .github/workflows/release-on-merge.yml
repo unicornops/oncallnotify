@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    tags-ignore:
+      - "v*"
   workflow_dispatch:
     inputs:
       version:
@@ -21,16 +23,25 @@ jobs:
   release:
     name: Create Release
     runs-on: macos-latest
-    # Extra security: only run on push to main (not PRs) or manual dispatch
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
+    # Run on push to main (not PRs) or manual dispatch
+    # Skip if triggered by a version bump commit (created by cocogitto)
+    if: |
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && !startsWith(github.event.head_commit.message, 'chore(version):'))
 
     steps:
+      # App token to run cocogitto
+      - uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf #v2.2.1
+        id: app-token
+        with:
+          app-id: ${{ secrets.UO_RELEASE_APP_ID }}
+          private-key: ${{ secrets.UO_RELEASE_APP_PRIVATE_KEY }}
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
         with:
           fetch-depth: 0
           # Use a PAT or default token with write permissions
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Configure git for bot commits
         run: |
@@ -72,7 +83,7 @@ jobs:
       - name: Cocogitto bump
         if: steps.version_strategy.outputs.strategy == 'auto' && steps.next_version.outputs.next_version != 'none'
         id: bump_auto
-        uses: cocogitto/cocogitto-action@v4
+        uses: cocogitto/cocogitto-action@9a9fe03b31c47444290c0d7f9b1ee1b44ee13f20 # v4.1.0
         with:
           command: bump
           args: --auto
@@ -539,7 +550,7 @@ jobs:
           cat release-notes.md
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
         with:
           tag_name: ${{ steps.bump.outputs.version }}
           body_path: release-notes.md
@@ -550,7 +561,7 @@ jobs:
           draft: false
           prerelease: false
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
 
       - name: Release summary
         run: |

@@ -246,7 +246,7 @@ class OnCallService: ObservableObject {
 
 /// Service that manages API calls for a single account
 class AccountService {
-    private let account: Account
+    private var account: Account
     private let baseURL = "https://api.pagerduty.com"
     private var currentUserId: String?
 
@@ -273,8 +273,8 @@ class AccountService {
         self.account = account
     }
 
-    func updateAccount(_ account: Account) {
-        // Update if needed in future
+    func updateAccount(_ newAccount: Account) {
+        self.account = newAccount
     }
 
     // MARK: - Main Fetch
