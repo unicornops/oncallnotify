@@ -38,9 +38,9 @@ struct SettingsView: View {
                             }
                         }
 
-                        Button(action: {
+                        Button {
                             showingAddAccount = true
-                        }) {
+                        } label: {
                             Label("Add Account", systemImage: "plus.circle")
                         }
                     }
