@@ -2,6 +2,27 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.23.0 - 2026-01-26
+#### Features
+- Add multi-account support - core implementation - (2586afc) - copilot-swe-agent[bot]
+#### Bug Fixes
+- resolve SwiftLint multiple closures trailing closure violation - (82e83c0) - Rob Lazzurs
+- resolve merge conflict with main for multi-account support - (49733f5) - Rob Lazzurs
+- Merge changes from main - add acknowledge all feature - (6213417) - copilot-swe-agent[bot]
+- Replace Toggle with Button in AccountRowView for enable/disable - (988b0c2) - copilot-swe-agent[bot]
+#### Documentation
+- add CLAUDE.md as symlink to AGENTS.md for Claude Code - (9b3dcd9) - Rob Lazzurs
+- Add comprehensive implementation details document - (df50b0e) - copilot-swe-agent[bot]
+- Add comprehensive multi-account testing guide - (664b3fa) - copilot-swe-agent[bot]
+- Update README and CHANGELOG for multi-account support - (7e92f5e) - copilot-swe-agent[bot]
+#### Chores
+- apply pre-commit auto-fixes and avoid detect-secrets false - (a0f05ce) - Rob Lazzurs
+- address pre-commit fixes and avoid detect-secrets false positive - (86bbf3b) - Rob Lazzurs
+- Remove extra documentation files and revert CHANGELOG - (04b991d) - copilot-swe-agent[bot]
+- add initial plan for multi-account support - (1303aa2) - copilot-swe-agent[bot]
+
+- - -
+
 ## v0.22.5 - 2026-01-25
 #### Bug Fixes
 - skip release workflow when triggered by version bump commits - (55eeaee) - Rob Lazzurs
