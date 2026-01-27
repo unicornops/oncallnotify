@@ -191,7 +191,7 @@ class OnCallService: ObservableObject {
             }
 
             do {
-                try await service.performAcknowledgment(incidentId: incident.id)
+                try await service.acknowledgeIncident(incidentId: incident.id)
             } catch {
                 errors.append(error)
             }

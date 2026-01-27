@@ -211,6 +211,7 @@ class AlertOpsService: OnCallServiceProvider {
 
     private func buildRequest(url: URL, apiToken: String) throws -> URLRequest {
         var request = URLRequest(url: url)
+        request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         // AlertOps uses "api-key" header for authentication
@@ -263,12 +264,14 @@ class AlertOpsService: OnCallServiceProvider {
             updatedAt: alertOpsIncident.updatedAt,
             htmlUrl: nil, // AlertOps may not provide direct URLs in the same way
             incidentNumber: nil,
-            service: alertOpsIncident.service.map { Service(
-                id: $0,
-                type: "service",
-                summary: $0,
-                htmlUrl: nil
-            )},
+            service: alertOpsIncident.service.map { serviceName in
+                Service(
+                    id: serviceName,
+                    type: "service",
+                    summary: "AlertOps Service: \(serviceName)",
+                    htmlUrl: nil
+                )
+            },
             assignments: alertOpsIncident.assignedTo.map { assignedTo in
                 [Assignment(at: alertOpsIncident.createdAt, assignee: User(
                     id: assignedTo,
