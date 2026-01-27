@@ -673,7 +673,7 @@ class AccountService {
             status: status,
             urgency: fireHydrantIncident.severity ?? "low",
             title: fireHydrantIncident.name,
-            createdAt: fireHydrantIncident.createdAt ?? ISO8601DateFormatter().string(from: Date()),
+            createdAt: fireHydrantIncident.createdAt ?? Self.iso8601Formatter.string(from: Date()),
             updatedAt: nil,
             htmlUrl: "https://app.firehydrant.io/incidents/\(fireHydrantIncident.id)",
             incidentNumber: nil,
@@ -684,7 +684,6 @@ class AccountService {
             accountId: account.id
         )
 
-        incident.accountId = account.id
         return incident
     }
 
