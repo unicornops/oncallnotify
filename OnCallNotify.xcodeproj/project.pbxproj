@@ -16,7 +16,13 @@
 		A10000001ABC000000000013 /* MenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000001ABC000000000014 /* MenuView.swift */; };
 		A10000001ABC000000000015 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10000001ABC000000000016 /* Assets.xcassets */; };
 		A10000001ABC000000000036 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000001ABC000000000037 /* NotificationService.swift */; };
-/* End PBXBuildFile section */
+		A1EE147EDD6657421DB35BB5 /* ServiceProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15DB6BF7DE40F4D329F635C /* ServiceProvider.swift */; };
+		A12666BC11721D448C8DCD8D /* PagerDutyProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C3621433B2884A818A397F /* PagerDutyProvider.swift */; };
+		A1CE50041EA1C14CA3B2B1D6 /* FireHydrantProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A16FA1AF55DB448A9114BE /* FireHydrantProvider.swift */; };
+		A18395B75565C64873BDA16E /* IncidentIOProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13A755A99E1E34E3D836451 /* IncidentIOProvider.swift */; };
+		A1B8122B207A6341EE97DD15 /* BetterStackProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A126E29B922146459FAF76DC /* BetterStackProvider.swift */; };
+		A1C1D8EBFEDB704AA7BA6FB7 /* AlertOpsProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1316BB657E679467C8A86D7 /* AlertOpsProvider.swift */; };
+	/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		A10000001ABC000000000002 /* OnCallNotifyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnCallNotifyApp.swift; sourceTree = "<group>"; };
@@ -30,7 +36,13 @@
 		A10000001ABC000000000017 /* OnCallNotify.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OnCallNotify.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000001ABC000000000018 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A10000001ABC000000000037 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
-/* End PBXFileReference section */
+		A15DB6BF7DE40F4D329F635C /* ServiceProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceProvider.swift; sourceTree = "<group>"; };
+		A1C3621433B2884A818A397F /* PagerDutyProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PagerDutyProvider.swift; sourceTree = "<group>"; };
+		A1A16FA1AF55DB448A9114BE /* FireHydrantProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FireHydrantProvider.swift; sourceTree = "<group>"; };
+		A13A755A99E1E34E3D836451 /* IncidentIOProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncidentIOProvider.swift; sourceTree = "<group>"; };
+		A126E29B922146459FAF76DC /* BetterStackProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BetterStackProvider.swift; sourceTree = "<group>"; };
+		A1316BB657E679467C8A86D7 /* AlertOpsProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertOpsProvider.swift; sourceTree = "<group>"; };
+	/* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A10000001ABC000000000019 /* Frameworks */ = {
@@ -87,6 +99,12 @@
 				A10000001ABC000000000006 /* OnCallService.swift */,
 				A10000001ABC000000000008 /* KeychainHelper.swift */,
 				A10000001ABC000000000037 /* NotificationService.swift */,
+				A15DB6BF7DE40F4D329F635C /* ServiceProvider.swift */,
+				A1C3621433B2884A818A397F /* PagerDutyProvider.swift */,
+				A1A16FA1AF55DB448A9114BE /* FireHydrantProvider.swift */,
+				A13A755A99E1E34E3D836451 /* IncidentIOProvider.swift */,
+				A126E29B922146459FAF76DC /* BetterStackProvider.swift */,
+				A1316BB657E679467C8A86D7 /* AlertOpsProvider.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -177,6 +195,12 @@
 				A10000001ABC000000000011 /* SettingsView.swift in Sources */,
 				A10000001ABC000000000013 /* MenuView.swift in Sources */,
 				A10000001ABC000000000036 /* NotificationService.swift in Sources */,
+				A1EE147EDD6657421DB35BB5 /* ServiceProvider.swift in Sources */,
+				A12666BC11721D448C8DCD8D /* PagerDutyProvider.swift in Sources */,
+				A1CE50041EA1C14CA3B2B1D6 /* FireHydrantProvider.swift in Sources */,
+				A18395B75565C64873BDA16E /* IncidentIOProvider.swift in Sources */,
+				A1B8122B207A6341EE97DD15 /* BetterStackProvider.swift in Sources */,
+				A1C1D8EBFEDB704AA7BA6FB7 /* AlertOpsProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
