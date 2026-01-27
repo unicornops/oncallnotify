@@ -2,6 +2,11 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## Unreleased
+#### Features
+- Add FireHydrant service support for incident monitoring - copilot-swe-agent[bot]
+
+- - -
 ## v0.23.0 - 2026-01-26
 #### Features
 - Add multi-account support - core implementation - (2586afc) - copilot-swe-agent[bot]
