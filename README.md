@@ -10,7 +10,7 @@ A native macOS status bar application for monitoring your on-call alerts and sta
 
 ## Overview
 
-OnCall Notify is your unified on-call status monitor for macOS. Currently supporting **PagerDuty** with
+OnCall Notify is your unified on-call status monitor for macOS. Currently supporting **PagerDuty** and **Better Stack** with
 plans to add support for additional on-call and incident management platforms in future releases.
 
 ## Features
@@ -32,6 +32,7 @@ plans to add support for additional on-call and incident management platforms in
 ### Currently Supported
 
 - ✅ **PagerDuty** - Full support for incidents and on-call schedules
+- ✅ **Better Stack** - Full support for incidents and on-call schedules
 
 ### Coming Soon
 
@@ -81,7 +82,7 @@ Manage your accounts with:
 
 - macOS 13.0 (Ventura) or later
 - Xcode 15.0 or later (for building)
-- Account with a supported service (currently PagerDuty)
+- Account with a supported service (PagerDuty or Better Stack)
 
 ## Installation
 
@@ -113,7 +114,9 @@ Pre-built releases will be available in the GitHub Releases section.
 
 ## Configuration
 
-### Getting Your PagerDuty API Token
+### Getting Your API Token
+
+#### PagerDuty
 
 1. Log in to your PagerDuty account
 2. Go to **User Settings** → **User Settings**
@@ -122,14 +125,23 @@ Pre-built releases will be available in the GitHub Releases section.
 5. Give it a description (e.g., "OnCall Notify macOS App")
 6. Copy the generated token
 
+#### Better Stack
+
+1. Log in to your Better Stack account
+2. Go to **Team Settings** → **API Tokens**
+3. Click **Create API Token**
+4. Give it a name (e.g., "OnCall Notify macOS App")
+5. Select appropriate permissions (read access to incidents and on-call schedules)
+6. Copy the generated token
+
 ### Setting Up the App
 
 1. Launch OnCall Notify (it will appear in your menu bar)
 2. Click the menu bar icon
 3. Click the gear icon (⚙️) to open Settings
 4. Click "Add Account" to add your first account
-5. Enter a friendly name for the account (e.g., "Work PagerDuty")
-6. Select the service type (currently only PagerDuty is supported)
+5. Enter a friendly name for the account (e.g., "Work PagerDuty" or "Better Stack Production")
+6. Select the service type (PagerDuty or Better Stack)
 7. Paste your API token
 8. Click "Add Account"
 9. Test the connection using the network icon
@@ -189,6 +201,16 @@ The application uses the following PagerDuty API v2 endpoints:
 - `GET /users/me` - Get current user information
 - `GET /incidents` - Fetch active incidents (triggered and acknowledged)
 - `GET /oncalls` - Fetch current on-call schedule information
+- `PUT /incidents/{id}` - Acknowledge incidents
+
+### Better Stack
+
+The application uses the following Better Stack API endpoints:
+
+- `GET /api/v3/incidents` - Fetch active incidents
+- `GET /api/v2/on-calls` - Fetch current on-call schedule information
+
+**Note**: Better Stack does not currently support programmatic incident acknowledgment via their API.
 
 ## Security
 

@@ -2,6 +2,18 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [Unreleased]
+#### Features
+- Add support for Better Stack service - (copilot) - copilot-swe-agent[bot]
+  - Added Better Stack to ServiceType enum
+  - Implemented Better Stack API integration for incidents and on-call schedules
+  - Added Better Stack response models and conversion helpers
+  - Updated Settings UI with Better Stack icon and instructions
+  - Better Stack uses API v3 for incidents and v2 for on-call schedules
+  - Authentication via Bearer token format
+  - Note: Better Stack does not support programmatic incident acknowledgment
+
+- - -
 ## v0.23.0 - 2026-01-26
 #### Features
 - Add multi-account support - core implementation - (2586afc) - copilot-swe-agent[bot]

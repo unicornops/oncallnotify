@@ -5,7 +5,7 @@ This file provides guidance for AI coding agents working on the OnCall Notify ma
 ## Project Overview
 
 OnCall Notify is a native macOS status bar application written in Swift that monitors on-call alerts and
-status across multiple incident management services. Currently supporting **PagerDuty** with architecture
+status across multiple incident management services. Currently supporting **PagerDuty** and **Better Stack** with architecture
 designed for easy addition of more services. It uses SwiftUI for the UI, AppKit for menu bar integration,
 and the macOS Keychain for secure credential storage.
 
@@ -16,8 +16,8 @@ and the macOS Keychain for secure credential storage.
 - Target: macOS 13.0+ (Ventura and later)
 - Architecture: MVVM pattern with service abstraction layer
 - No external dependencies (pure Swift)
-- Total LOC: ~1,300 lines across 7 Swift files
-- **Current Services**: PagerDuty
+- Total LOC: ~1,600 lines across 7 Swift files
+- **Current Services**: PagerDuty, Better Stack
 - **Planned Services**: Atlassian Compass, Atlassian Jira Service Management, VictorOps, Alertmanager, Custom Webhooks
 
 ### Data Flow
@@ -42,8 +42,8 @@ and the macOS Keychain for secure credential storage.
 │  • Fetches data from API every 60 seconds                       │
 │  • Processes incidents and on-call schedules                    │
 │  • Updates @Published alertSummary                              │
-│  • Currently: PagerDuty implementation                          │
-│  • Future: Multi-service abstraction                            │
+│  • Currently: PagerDuty and Better Stack implementations        │
+│  • Future: Additional service integrations                      │
 └────────────────────────────┬────────────────────────────────────┘
                              │
                    ┌─────────┴─────────┐
@@ -119,7 +119,7 @@ OnCallNotify/
 ├── Models/
 │   └── Models.swift              # All data models: Incident, Oncall, User, etc.
 ├── Services/
-│   ├── OnCallService.swift       # Service abstraction layer (currently PagerDuty)
+│   ├── OnCallService.swift       # Service abstraction layer (PagerDuty & Better Stack)
 │   └── KeychainHelper.swift      # Secure API token storage in macOS Keychain
 ├── Views/
 │   ├── MenuView.swift            # Popover menu UI with alerts and on-call status
@@ -652,9 +652,7 @@ log show --predicate 'process == "OnCallNotify"' --last 5m
 
 Current constraints to be aware of:
 
-- Read-only access (cannot acknowledge/resolve incidents from app)
-- Single service support (PagerDuty only, multi-service coming)
-- Single account per service
+- Better Stack does not support programmatic incident acknowledgment via API
 - Fixed 60-second refresh interval (code change required)
 - Shows only user's assigned incidents
 - No desktop notifications yet
@@ -662,12 +660,14 @@ Current constraints to be aware of:
 
 ## Future Enhancements Roadmap
 
-### Phase 1 (Current - PagerDuty)
+### Phase 1 (Completed)
 
 - [x] PagerDuty integration
+- [x] Better Stack integration
 - [x] Basic alert monitoring
 - [x] On-call status display
-- [x] Incident acknowledgment from app
+- [x] Incident acknowledgment from app (PagerDuty only)
+- [x] Multi-account support
 
 ### Phase 2 (Near Term)
 
@@ -676,25 +676,25 @@ Current constraints to be aware of:
 3. Sound alerts
 4. Incident resolution from app
 
-### Phase 3 (Multi-Service)
+### Phase 3 (Additional Services)
 
-1. Service abstraction layer
-2. Atlassian Compass integration
-3. Atlassian Jira Service Management integration
-4. VictorOps/Splunk On-Call integration
-5. Service selection UI in Settings
-6. Per-service configuration
+1. Atlassian Compass integration
+2. Atlassian Jira Service Management integration
+3. VictorOps/Splunk On-Call integration
+4. Alertmanager integration
+5. Custom webhook support
 
 ### Phase 4 (Advanced)
 
-1. Multiple account support across services
-2. Alertmanager integration
-3. Custom webhook support
-4. Advanced filtering (by service, urgency, team)
-5. Historical incident view
-6. Keyboard shortcuts
-7. Export incident data
-8. Multi-team support
+1. Desktop notifications for new incidents
+2. Customizable refresh interval in Settings
+3. Sound alerts
+4. Incident resolution from app
+5. Advanced filtering (by service, urgency, team)
+6. Historical incident view
+7. Keyboard shortcuts
+8. Export incident data
+9. Multi-team support
 
 ## Multi-Service Architecture Guidelines
 
@@ -787,8 +787,8 @@ protocol OnCallServiceProtocol {
 
 ---
 
-**Last Updated**: 2024-12-09  
-**Project Version**: 1.0.0  
-**Current Service Support**: PagerDuty  
-**Security Status**: 🔴 Critical fixes needed (see SECURITY.md)  
+**Last Updated**: 2026-01-27
+**Project Version**: 1.0.0
+**Current Service Support**: PagerDuty, Better Stack
+**Security Status**: 🔴 Critical fixes needed (see SECURITY.md)
 **Agent-Friendly**: This file is designed to help AI coding agents understand and contribute to the project effectively.
