@@ -323,23 +323,9 @@ class AlertOpsService: OnCallServiceProvider {
 
         let currentlyOnCall = !schedules.isEmpty
 
-        // Detect changes
-        var hasNewIncident = false
-        var hasNewOnCall = false
-
+        // Detect changes and send notifications (skip on first fetch)
         if !isFirstFetch {
-            // Check for new incidents
-            for incident in triggeredIncidents {
-                if previousIncidentStatuses[incident.id] == nil {
-                    hasNewIncident = true
-                    break
-                }
-            }
-
-            // Check for on-call status change
-            if currentlyOnCall && !previousOnCallStatus {
-                hasNewOnCall = true
-            }
+            detectAndNotifyChanges(incidents: incidents, isOnCall: currentlyOnCall)
         }
 
         // Update tracking state
@@ -352,15 +338,55 @@ class AlertOpsService: OnCallServiceProvider {
         return AccountAlertSummary(
             accountId: account.id,
             accountName: account.name,
-            totalAlerts: triggeredIncidents.count + acknowledgedIncidents.count,
+            totalAlerts: incidents.count,
             acknowledgedCount: acknowledgedIncidents.count,
-            triggeredCount: triggeredIncidents.count,
-            incidents: incidents,
-            oncalls: schedules,
+            unacknowledgedCount: triggeredIncidents.count,
             isOnCall: currentlyOnCall,
-            hasNewIncident: hasNewIncident,
-            hasNewOnCall: hasNewOnCall
+            incidents: incidents
         )
+    }
+
+    private func detectAndNotifyChanges(incidents: [Incident], isOnCall: Bool) {
+        let currentIncidentStatuses = Dictionary(uniqueKeysWithValues: incidents.map { ($0.id, $0.status) })
+        let currentIncidentIds = Set(currentIncidentStatuses.keys)
+        let previousIncidentIds = Set(previousIncidentStatuses.keys)
+
+        // Detect new incidents and status transitions
+        for incident in incidents {
+            if let previousStatus = previousIncidentStatuses[incident.id] {
+                if previousStatus != incident.status {
+                    if previousStatus == .triggered, incident.status == .acknowledged {
+                        NotificationService.shared.removeIncidentNotification(incidentId: incident.id)
+                        NotificationService.shared.sendIncidentAcknowledgedNotification(incident: incident)
+                    } else if incident.status == .resolved {
+                        NotificationService.shared.sendIncidentResolvedNotification(incident: incident)
+                        NotificationService.shared.removeIncidentNotification(incidentId: incident.id)
+                    }
+                }
+            } else {
+                // New incident
+                if incident.status == .triggered {
+                    NotificationService.shared.sendIncidentNotification(incident: incident)
+                } else if incident.status == .acknowledged {
+                    NotificationService.shared.sendIncidentAcknowledgedNotification(incident: incident)
+                }
+            }
+        }
+
+        // Detect resolved incidents
+        let resolvedIncidentIds = previousIncidentIds.subtracting(currentIncidentIds)
+        for incidentId in resolvedIncidentIds {
+            NotificationService.shared.removeIncidentNotification(incidentId: incidentId)
+        }
+
+        // Detect on-call status changes
+        if isOnCall != previousOnCallStatus {
+            if isOnCall {
+                NotificationService.shared.sendOnCallStartNotification(nextShift: nil)
+            } else {
+                NotificationService.shared.sendOnCallEndNotification(nextShift: nil)
+            }
+        }
     }
 
     private static let logger = Logger(subsystem: "com.oncall.notify", category: "alertops")

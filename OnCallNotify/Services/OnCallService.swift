@@ -250,4 +250,3 @@ class OnCallService: ObservableObject {
 
     private static let logger = Logger(subsystem: "com.oncall.notify", category: "api")
 }
-
