@@ -247,8 +247,16 @@ class OnCallService: ObservableObject {
 /// Service that manages API calls for a single account
 class AccountService {
     private var account: Account
-    private let baseURL = "https://api.pagerduty.com"
     private var currentUserId: String?
+
+    private var baseURL: String {
+        switch account.serviceType {
+        case .pagerDuty:
+            return "https://api.pagerduty.com"
+        case .fireHydrant:
+            return "https://api.firehydrant.io/v1"
+        }
+    }
 
     // Track previous state for change detection per account
     private var previousIncidentStatuses: [String: IncidentStatus] = [:]
@@ -284,6 +292,17 @@ class AccountService {
             throw OnCallError.noAPIToken
         }
 
+        switch account.serviceType {
+        case .pagerDuty:
+            return try await fetchPagerDutyData(apiToken: apiToken)
+        case .fireHydrant:
+            return try await fetchFireHydrantData(apiToken: apiToken)
+        }
+    }
+
+    // MARK: - PagerDuty Fetch
+
+    private func fetchPagerDutyData(apiToken: String) async throws -> AccountAlertSummary {
         // First, get current user ID if we don't have it
         if currentUserId == nil {
             try await fetchCurrentUser(apiToken: apiToken)
@@ -292,6 +311,24 @@ class AccountService {
         // Fetch incidents and on-call status in parallel
         async let incidents = fetchIncidents(apiToken: apiToken)
         async let oncalls = fetchOncalls(apiToken: apiToken)
+
+        let (fetchedIncidents, fetchedOncalls) = try await (incidents, oncalls)
+
+        // Process and return summary
+        return processData(incidents: fetchedIncidents, oncalls: fetchedOncalls)
+    }
+
+    // MARK: - FireHydrant Fetch
+
+    private func fetchFireHydrantData(apiToken: String) async throws -> AccountAlertSummary {
+        // First, get current user ID if we don't have it
+        if currentUserId == nil {
+            try await fetchFireHydrantCurrentUser(apiToken: apiToken)
+        }
+
+        // Fetch incidents and on-call status in parallel
+        async let incidents = fetchFireHydrantIncidents(apiToken: apiToken)
+        async let oncalls = fetchFireHydrantOncalls(apiToken: apiToken)
 
         let (fetchedIncidents, fetchedOncalls) = try await (incidents, oncalls)
 
@@ -310,6 +347,20 @@ class AccountService {
             throw OnCallError.noAPIToken
         }
 
+        switch account.serviceType {
+        case .pagerDuty:
+            try await performPagerDutyAcknowledgment(incidentId: incidentId, apiToken: apiToken)
+        case .fireHydrant:
+            // FireHydrant doesn't have a direct "acknowledge" API
+            // We would need to update the milestone, which requires additional configuration
+            // For now, throw an error indicating this feature is not supported
+            throw OnCallError.acknowledgmentFailed(
+                message: "Acknowledgment not yet supported for FireHydrant. Please use the FireHydrant web interface."
+            )
+        }
+    }
+
+    private func performPagerDutyAcknowledgment(incidentId: String, apiToken: String) async throws {
         let endpoint = "/incidents/\(incidentId)"
         let url = try buildURL(endpoint: endpoint)
         var request = try buildRequest(url: url, apiToken: apiToken)
@@ -501,6 +552,142 @@ class AccountService {
         return oncallsResponse.oncalls
     }
 
+    // MARK: - FireHydrant API Methods
+
+    private func fetchFireHydrantCurrentUser(apiToken: String) async throws {
+        let endpoint = "/user"
+        let url = try buildURL(endpoint: endpoint)
+        let request = try buildRequest(url: url, apiToken: apiToken)
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw OnCallError.invalidResponse
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            if httpResponse.statusCode == 401 {
+                throw OnCallError.unauthorized
+            } else if httpResponse.statusCode == 429 {
+                throw OnCallError.rateLimited
+            } else if httpResponse.statusCode >= 500 {
+                throw OnCallError.serverError(statusCode: httpResponse.statusCode)
+            } else {
+                throw OnCallError.apiError(
+                    technicalMessage: "HTTP \(httpResponse.statusCode)",
+                    userMessage: "Unable to complete request")
+            }
+        }
+
+        let decoder = JSONDecoder()
+        let userResponse = try decoder.decode(FireHydrantUserResponse.self, from: data)
+        currentUserId = userResponse.data.id
+    }
+
+    private func fetchFireHydrantIncidents(apiToken: String) async throws -> [Incident] {
+        let endpoint = "/incidents"
+        guard var components = URLComponents(string: baseURL + endpoint) else {
+            throw OnCallError.invalidURL
+        }
+
+        // FireHydrant uses different query parameters
+        // Filter for open incidents only
+        components.queryItems = [
+            URLQueryItem(name: "page", value: "1"),
+            URLQueryItem(name: "per_page", value: "100")
+        ]
+
+        guard let url = components.url else {
+            throw OnCallError.invalidURL
+        }
+
+        let request = try buildRequest(url: url, apiToken: apiToken)
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw OnCallError.invalidResponse
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            if httpResponse.statusCode == 401 {
+                throw OnCallError.unauthorized
+            } else if httpResponse.statusCode == 429 {
+                throw OnCallError.rateLimited
+            } else if httpResponse.statusCode >= 500 {
+                throw OnCallError.serverError(statusCode: httpResponse.statusCode)
+            } else {
+                throw OnCallError.apiError(
+                    technicalMessage: "HTTP \(httpResponse.statusCode)",
+                    userMessage: "Unable to complete request")
+            }
+        }
+
+        let decoder = JSONDecoder()
+        let incidentsResponse = try decoder.decode(FireHydrantIncidentsResponse.self, from: data)
+
+        // Convert FireHydrant incidents to common Incident model
+        let incidents = incidentsResponse.data.compactMap { fireHydrantIncident -> Incident? in
+            convertFireHydrantIncident(fireHydrantIncident)
+        }
+
+        return incidents
+    }
+
+    private func fetchFireHydrantOncalls(apiToken: String) async throws -> [Oncall] {
+        // FireHydrant doesn't have a direct on-call endpoint like PagerDuty
+        // We'll need to check the user's team schedules
+        // For now, return empty array - can be enhanced later
+        return []
+    }
+
+    private func convertFireHydrantIncident(_ fireHydrantIncident: FireHydrantIncident) -> Incident? {
+        // Map FireHydrant milestone to PagerDuty status
+        let status: IncidentStatus
+        if let milestone = fireHydrantIncident.currentMilestone?.lowercased() {
+            if milestone.contains("resolved") || milestone.contains("closed") {
+                status = .resolved
+            } else if milestone.contains("mitigated") || milestone.contains("investigating") {
+                status = .acknowledged
+            } else {
+                status = .triggered
+            }
+        } else {
+            status = .triggered
+        }
+
+        // Create a service if available
+        let service: Service? = fireHydrantIncident.services?.first.map { fhService in
+            Service(
+                id: fhService.id,
+                type: "service",
+                summary: fhService.name,
+                htmlUrl: nil
+            )
+        }
+
+        // Build incident
+        var incident = Incident(
+            id: fireHydrantIncident.id,
+            type: "incident",
+            summary: fireHydrantIncident.name,
+            status: status,
+            urgency: fireHydrantIncident.severity ?? "low",
+            title: fireHydrantIncident.name,
+            createdAt: fireHydrantIncident.createdAt ?? ISO8601DateFormatter().string(from: Date()),
+            updatedAt: nil,
+            htmlUrl: "https://app.firehydrant.io/incidents/\(fireHydrantIncident.id)",
+            incidentNumber: nil,
+            service: service,
+            assignments: nil,
+            acknowledgements: nil,
+            lastStatusChangeAt: nil,
+            accountId: account.id
+        )
+
+        incident.accountId = account.id
+        return incident
+    }
+
     // MARK: - Helper Methods
 
     private func buildURL(endpoint: String) throws -> URL {
@@ -513,7 +700,15 @@ class AccountService {
     private func buildRequest(url: URL, apiToken: String) throws -> URLRequest {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.setValue("Token token=\(apiToken)", forHTTPHeaderField: "Authorization")
+
+        // Set authentication based on service type
+        switch account.serviceType {
+        case .pagerDuty:
+            request.setValue("Token token=\(apiToken)", forHTTPHeaderField: "Authorization")
+        case .fireHydrant:
+            request.setValue("Bearer \(apiToken)", forHTTPHeaderField: "Authorization")
+        }
+
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.cachePolicy = .reloadIgnoringLocalCacheData

@@ -159,10 +159,112 @@ struct UserDetail: Codable {
     }
 }
 
+// MARK: - FireHydrant Models
+
+struct FireHydrantIncidentsResponse: Codable {
+    let data: [FireHydrantIncident]
+    let pagination: FireHydrantPagination?
+}
+
+struct FireHydrantIncident: Codable {
+    let id: String
+    let name: String
+    let description: String?
+    let priority: String?
+    let severity: String?
+    let currentMilestone: String?
+    let createdAt: String?
+    let startedAt: String?
+    let functionalities: [FireHydrantFunctionality]?
+    let services: [FireHydrantService]?
+    let teams: [FireHydrantTeam]?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, description, priority, severity
+        case currentMilestone = "current_milestone"
+        case createdAt = "created_at"
+        case startedAt = "started_at"
+        case functionalities, services, teams
+    }
+}
+
+struct FireHydrantFunctionality: Codable {
+    let id: String
+    let name: String
+}
+
+struct FireHydrantService: Codable {
+    let id: String
+    let name: String
+}
+
+struct FireHydrantTeam: Codable {
+    let id: String
+    let name: String
+}
+
+struct FireHydrantPagination: Codable {
+    let currentPage: Int?
+    let perPage: Int?
+    let totalCount: Int?
+    let totalPages: Int?
+    let nextPage: Int?
+    let previousPage: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case currentPage = "current_page"
+        case perPage = "per_page"
+        case totalCount = "total_count"
+        case totalPages = "total_pages"
+        case nextPage = "next_page"
+        case previousPage = "previous_page"
+    }
+}
+
+struct FireHydrantOnCallSchedulesResponse: Codable {
+    let data: [FireHydrantOnCallSchedule]
+}
+
+struct FireHydrantOnCallSchedule: Codable {
+    let id: String
+    let name: String
+    let teamId: String?
+    let currentShift: FireHydrantShift?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name
+        case teamId = "team_id"
+        case currentShift = "current_shift"
+    }
+}
+
+struct FireHydrantShift: Codable {
+    let startsAt: String?
+    let endsAt: String?
+    let userId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case startsAt = "starts_at"
+        case endsAt = "ends_at"
+        case userId = "user_id"
+    }
+}
+
+struct FireHydrantUserResponse: Codable {
+    let data: FireHydrantUser
+}
+
+struct FireHydrantUser: Codable {
+    let id: String
+    let name: String
+    let email: String?
+}
+
 // MARK: - Multi-Account Models
 
 enum ServiceType: String, Codable, CaseIterable {
     case pagerDuty = "PagerDuty"
+    case fireHydrant = "FireHydrant"
     // Future services:
     // case atlassianCompass = "Atlassian Compass"
     // case jiraServiceManagement = "Jira Service Management"

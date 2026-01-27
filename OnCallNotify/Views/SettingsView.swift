@@ -241,6 +241,8 @@ struct AccountRowView: View {
         switch account.serviceType {
         case .pagerDuty:
             "bell.fill"
+        case .fireHydrant:
+            "flame.fill"
         }
     }
 
@@ -346,6 +348,8 @@ struct AddAccountView: View {
         switch serviceType {
         case .pagerDuty:
             "Create an API token in your PagerDuty account under User Settings → API Access Keys."
+        case .fireHydrant:
+            "Create a bot or user API token in your FireHydrant account under Settings → API Tokens."
         }
     }
 
