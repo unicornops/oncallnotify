@@ -629,6 +629,9 @@ class AccountService {
     }
 
     // MARK: - Better Stack Conversion Helpers
+    
+    // Better Stack doesn't provide granular urgency levels - all incidents are treated as high priority
+    private let betterStackDefaultUrgency = "high"
 
     private func convertBetterStackIncident(_ betterStackIncident: BetterStackIncidentData) -> Incident? {
         let attrs = betterStackIncident.attributes
@@ -648,7 +651,7 @@ class AccountService {
 
         // Create a service object
         let service = Service(
-            id: attrs.escalationPolicyId ?? "betterstack-service-\(betterStackIncident.id)",
+            id: attrs.escalationPolicyId ?? "betterstack-unknown-service-\(betterStackIncident.id)",
             type: "service",
             summary: attrs.teamName ?? "Better Stack",
             htmlUrl: attrs.url
@@ -659,7 +662,7 @@ class AccountService {
             type: "incident",
             summary: attrs.name,
             status: status,
-            urgency: "high", // Better Stack doesn't have granular urgency levels - all incidents are high priority
+            urgency: betterStackDefaultUrgency,
             title: attrs.name,
             createdAt: attrs.startedAt,
             updatedAt: attrs.acknowledgedAt ?? attrs.resolvedAt,
@@ -671,9 +674,9 @@ class AccountService {
                 Acknowledgement(
                     at: attrs.acknowledgedAt!,
                     acknowledger: User(
-                        id: attrs.acknowledgedBy ?? "betterstack-user-\(betterStackIncident.id)",
+                        id: attrs.acknowledgedBy ?? "betterstack-unknown-user-\(betterStackIncident.id)",
                         type: "user",
-                        summary: attrs.acknowledgedBy ?? "Unknown",
+                        summary: attrs.acknowledgedBy ?? "Unknown User",
                         htmlUrl: nil
                     )
                 )
