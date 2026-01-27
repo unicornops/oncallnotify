@@ -163,6 +163,7 @@ struct UserDetail: Codable {
 
 enum ServiceType: String, Codable, CaseIterable {
     case pagerDuty = "PagerDuty"
+    case incidentIO = "incident.io"
     // Future services:
     // case atlassianCompass = "Atlassian Compass"
     // case jiraServiceManagement = "Jira Service Management"
@@ -302,5 +303,111 @@ enum OnCallError: Error, LocalizedError {
         case let .acknowledgmentFailed(message):
             "Acknowledgment Failed: \(message)"
         }
+    }
+}
+
+// MARK: - incident.io API Models
+
+struct IncidentIOIncidentsResponse: Codable {
+    let incidents: [IncidentIOIncident]
+    let paginationMeta: IncidentIOPaginationMeta?
+
+    enum CodingKeys: String, CodingKey {
+        case incidents
+        case paginationMeta = "pagination_meta"
+    }
+}
+
+struct IncidentIOIncident: Codable {
+    let id: String
+    let name: String
+    let summary: String?
+    let description: String?
+    let mode: String?
+    let status: IncidentIOStatus?
+    let severity: IncidentIOSeverity?
+    let createdAt: String
+    let updatedAt: String
+    let creator: IncidentIOUser?
+    let visibility: String?
+    let permalinkUrl: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, summary, description, mode, status, severity, creator, visibility
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case permalinkUrl = "permalink_url"
+    }
+}
+
+struct IncidentIOStatus: Codable {
+    let id: String
+    let name: String
+    let category: String?
+}
+
+struct IncidentIOSeverity: Codable {
+    let id: String
+    let name: String
+    let rank: Int?
+}
+
+struct IncidentIOUser: Codable {
+    let id: String
+    let name: String
+    let email: String?
+}
+
+struct IncidentIOPaginationMeta: Codable {
+    let afterCursor: String?
+    let pageSize: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case afterCursor = "after"
+        case pageSize = "page_size"
+    }
+}
+
+struct IncidentIOSchedulesResponse: Codable {
+    let schedules: [IncidentIOSchedule]
+}
+
+struct IncidentIOSchedule: Codable {
+    let id: String
+    let name: String
+}
+
+struct IncidentIOScheduleEntriesResponse: Codable {
+    let scheduleEntries: [IncidentIOScheduleEntry]
+
+    enum CodingKeys: String, CodingKey {
+        case scheduleEntries = "schedule_entries"
+    }
+}
+
+struct IncidentIOScheduleEntry: Codable {
+    let user: IncidentIOUser
+    let startAt: String?
+    let endsAt: String?
+    let layer: IncidentIOLayer?
+
+    enum CodingKeys: String, CodingKey {
+        case user
+        case startAt = "start_at"
+        case endsAt = "ends_at"
+        case layer
+    }
+}
+
+struct IncidentIOLayer: Codable {
+    let id: String
+    let name: String
+}
+
+struct IncidentIOUpdateIncidentRequest: Codable {
+    let incident: IncidentIOUpdateIncidentBody
+
+    struct IncidentIOUpdateIncidentBody: Codable {
+        let status: String
     }
 }

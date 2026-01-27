@@ -247,7 +247,7 @@ class OnCallService: ObservableObject {
 /// Service that manages API calls for a single account
 class AccountService {
     private var account: Account
-    private let baseURL = "https://api.pagerduty.com"
+    private var baseURL: String
     private var currentUserId: String?
 
     // Track previous state for change detection per account
@@ -271,10 +271,21 @@ class AccountService {
 
     init(account: Account) {
         self.account = account
+        self.baseURL = Self.getBaseURL(for: account.serviceType)
     }
 
     func updateAccount(_ newAccount: Account) {
         self.account = newAccount
+        self.baseURL = Self.getBaseURL(for: newAccount.serviceType)
+    }
+
+    private static func getBaseURL(for serviceType: ServiceType) -> String {
+        switch serviceType {
+        case .pagerDuty:
+            return "https://api.pagerduty.com"
+        case .incidentIO:
+            return "https://api.incident.io"
+        }
     }
 
     // MARK: - Main Fetch
@@ -284,16 +295,36 @@ class AccountService {
             throw OnCallError.noAPIToken
         }
 
+        switch account.serviceType {
+        case .pagerDuty:
+            return try await fetchPagerDutyData(apiToken: apiToken)
+        case .incidentIO:
+            return try await fetchIncidentIOData(apiToken: apiToken)
+        }
+    }
+
+    private func fetchPagerDutyData(apiToken: String) async throws -> AccountAlertSummary {
         // First, get current user ID if we don't have it
         if currentUserId == nil {
-            try await fetchCurrentUser(apiToken: apiToken)
+            try await fetchPagerDutyCurrentUser(apiToken: apiToken)
         }
 
         // Fetch incidents and on-call status in parallel
-        async let incidents = fetchIncidents(apiToken: apiToken)
-        async let oncalls = fetchOncalls(apiToken: apiToken)
+        async let incidents = fetchPagerDutyIncidents(apiToken: apiToken)
+        async let oncalls = fetchPagerDutyOncalls(apiToken: apiToken)
 
         let (fetchedIncidents, fetchedOncalls) = try await (incidents, oncalls)
+
+        // Process and return summary
+        return processData(incidents: fetchedIncidents, oncalls: fetchedOncalls)
+    }
+
+    private func fetchIncidentIOData(apiToken: String) async throws -> AccountAlertSummary {
+        // Fetch incidents and schedules in parallel
+        async let incidents = fetchIncidentIOIncidents(apiToken: apiToken)
+        async let schedules = fetchIncidentIOSchedules(apiToken: apiToken)
+
+        let (fetchedIncidents, fetchedOncalls) = try await (incidents, schedules)
 
         // Process and return summary
         return processData(incidents: fetchedIncidents, oncalls: fetchedOncalls)
@@ -310,9 +341,18 @@ class AccountService {
             throw OnCallError.noAPIToken
         }
 
+        switch account.serviceType {
+        case .pagerDuty:
+            try await performPagerDutyAcknowledgment(incidentId: incidentId, apiToken: apiToken)
+        case .incidentIO:
+            try await performIncidentIOAcknowledgment(incidentId: incidentId, apiToken: apiToken)
+        }
+    }
+
+    private func performPagerDutyAcknowledgment(incidentId: String, apiToken: String) async throws {
         let endpoint = "/incidents/\(incidentId)"
         let url = try buildURL(endpoint: endpoint)
-        var request = try buildRequest(url: url, apiToken: apiToken)
+        var request = try buildPagerDutyRequest(url: url, apiToken: apiToken)
 
         request.httpMethod = "PUT"
 
@@ -343,25 +383,77 @@ class AccountService {
         }
     }
 
+    private func performIncidentIOAcknowledgment(incidentId: String, apiToken: String) async throws {
+        let endpoint = "/v2/incidents/\(incidentId)"
+        let url = try buildURL(endpoint: endpoint)
+        var request = try buildIncidentIORequest(url: url, apiToken: apiToken)
+
+        request.httpMethod = "PATCH"
+
+        let requestBody = IncidentIOUpdateIncidentRequest(
+            incident: IncidentIOUpdateIncidentRequest.IncidentIOUpdateIncidentBody(status: "acknowledged")
+        )
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        request.httpBody = try encoder.encode(requestBody)
+
+        let (_, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw OnCallError.invalidResponse
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            if httpResponse.statusCode == 401 {
+                throw OnCallError.unauthorized
+            } else if httpResponse.statusCode == 429 {
+                throw OnCallError.rateLimited
+            } else if httpResponse.statusCode >= 500 {
+                throw OnCallError.serverError(statusCode: httpResponse.statusCode)
+            } else {
+                throw OnCallError.acknowledgmentFailed(message: "Failed to acknowledge incident")
+            }
+        }
+    }
+
     func testConnection() async -> Bool {
         guard let apiToken = KeychainHelper.shared.getAPIToken(forAccountId: account.id) else {
             return false
         }
 
+        switch account.serviceType {
+        case .pagerDuty:
+            return await testPagerDutyConnection(apiToken: apiToken)
+        case .incidentIO:
+            return await testIncidentIOConnection(apiToken: apiToken)
+        }
+    }
+
+    private func testPagerDutyConnection(apiToken: String) async -> Bool {
         do {
-            try await fetchCurrentUser(apiToken: apiToken)
+            try await fetchPagerDutyCurrentUser(apiToken: apiToken)
             return true
         } catch {
             return false
         }
     }
 
-    // MARK: - Private API Methods
+    private func testIncidentIOConnection(apiToken: String) async -> Bool {
+        do {
+            _ = try await fetchIncidentIOIncidents(apiToken: apiToken)
+            return true
+        } catch {
+            return false
+        }
+    }
 
-    private func fetchCurrentUser(apiToken: String) async throws {
+    // MARK: - PagerDuty API Methods
+
+    private func fetchPagerDutyCurrentUser(apiToken: String) async throws {
         let endpoint = "/users/me"
         let url = try buildURL(endpoint: endpoint)
-        let request = try buildRequest(url: url, apiToken: apiToken)
+        let request = try buildPagerDutyRequest(url: url, apiToken: apiToken)
 
         let (data, response) = try await urlSession.data(for: request)
 
@@ -388,7 +480,7 @@ class AccountService {
         currentUserId = userResponse.user.id
     }
 
-    private func fetchIncidents(apiToken: String) async throws -> [Incident] {
+    private func fetchPagerDutyIncidents(apiToken: String) async throws -> [Incident] {
         let endpoint = "/incidents"
         guard var components = URLComponents(string: baseURL + endpoint) else {
             throw OnCallError.invalidURL
@@ -409,7 +501,7 @@ class AccountService {
             throw OnCallError.invalidURL
         }
 
-        let request = try buildRequest(url: url, apiToken: apiToken)
+        let request = try buildPagerDutyRequest(url: url, apiToken: apiToken)
         let (data, response) = try await urlSession.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -441,7 +533,7 @@ class AccountService {
         }
     }
 
-    private func fetchOncalls(apiToken: String) async throws -> [Oncall] {
+    private func fetchPagerDutyOncalls(apiToken: String) async throws -> [Oncall] {
         let endpoint = "/oncalls"
         guard var components = URLComponents(string: baseURL + endpoint) else {
             throw OnCallError.invalidURL
@@ -474,7 +566,7 @@ class AccountService {
             throw OnCallError.invalidURL
         }
 
-        let request = try buildRequest(url: url, apiToken: apiToken)
+        let request = try buildPagerDutyRequest(url: url, apiToken: apiToken)
         let (data, response) = try await urlSession.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -510,7 +602,7 @@ class AccountService {
         return url
     }
 
-    private func buildRequest(url: URL, apiToken: String) throws -> URLRequest {
+    private func buildPagerDutyRequest(url: URL, apiToken: String) throws -> URLRequest {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Token token=\(apiToken)", forHTTPHeaderField: "Authorization")
@@ -518,6 +610,225 @@ class AccountService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.cachePolicy = .reloadIgnoringLocalCacheData
         return request
+    }
+
+    private func buildIncidentIORequest(url: URL, apiToken: String) throws -> URLRequest {
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(apiToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        return request
+    }
+
+    // MARK: - incident.io API Methods
+
+    private func fetchIncidentIOIncidents(apiToken: String) async throws -> [Incident] {
+        let endpoint = "/v2/incidents"
+        guard var components = URLComponents(string: baseURL + endpoint) else {
+            throw OnCallError.invalidURL
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "page_size", value: "100")
+        ]
+
+        guard let url = components.url else {
+            throw OnCallError.invalidURL
+        }
+
+        let request = try buildIncidentIORequest(url: url, apiToken: apiToken)
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw OnCallError.invalidResponse
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            if httpResponse.statusCode == 401 {
+                throw OnCallError.unauthorized
+            } else if httpResponse.statusCode == 429 {
+                throw OnCallError.rateLimited
+            } else if httpResponse.statusCode >= 500 {
+                throw OnCallError.serverError(statusCode: httpResponse.statusCode)
+            } else {
+                throw OnCallError.apiError(
+                    technicalMessage: "HTTP \(httpResponse.statusCode)",
+                    userMessage: "Unable to complete request")
+            }
+        }
+
+        let decoder = JSONDecoder()
+        let incidentsResponse = try decoder.decode(IncidentIOIncidentsResponse.self, from: data)
+
+        // Convert incident.io incidents to common Incident model
+        return incidentsResponse.incidents.compactMap { ioIncident -> Incident? in
+            // Map incident.io status category to IncidentStatus
+            let status: IncidentStatus
+            if let statusCategory = ioIncident.status?.category {
+                switch statusCategory.lowercased() {
+                case "triage", "active":
+                    status = .triggered
+                case "learning", "closed":
+                    status = .resolved
+                default:
+                    status = .acknowledged
+                }
+            } else {
+                status = .triggered
+            }
+
+            // Only include non-resolved incidents
+            guard status != .resolved else {
+                return nil
+            }
+
+            let incident = Incident(
+                id: ioIncident.id,
+                type: "incident",
+                summary: ioIncident.summary ?? ioIncident.name,
+                status: status,
+                urgency: ioIncident.severity?.name ?? "unknown",
+                title: ioIncident.name,
+                createdAt: ioIncident.createdAt,
+                updatedAt: ioIncident.updatedAt,
+                htmlUrl: ioIncident.permalinkUrl,
+                incidentNumber: nil,
+                service: nil,
+                assignments: nil,
+                acknowledgements: nil,
+                lastStatusChangeAt: ioIncident.updatedAt,
+                accountId: account.id
+            )
+
+            return incident
+        }
+    }
+
+    private func fetchIncidentIOSchedules(apiToken: String) async throws -> [Oncall] {
+        let endpoint = "/v2/schedules"
+        let url = try buildURL(endpoint: endpoint)
+        let request = try buildIncidentIORequest(url: url, apiToken: apiToken)
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw OnCallError.invalidResponse
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            if httpResponse.statusCode == 401 {
+                throw OnCallError.unauthorized
+            } else if httpResponse.statusCode == 429 {
+                throw OnCallError.rateLimited
+            } else if httpResponse.statusCode >= 500 {
+                throw OnCallError.serverError(statusCode: httpResponse.statusCode)
+            } else {
+                throw OnCallError.apiError(
+                    technicalMessage: "HTTP \(httpResponse.statusCode)",
+                    userMessage: "Unable to complete request")
+            }
+        }
+
+        let decoder = JSONDecoder()
+        let schedulesResponse = try decoder.decode(IncidentIOSchedulesResponse.self, from: data)
+
+        // Fetch current on-call entries for each schedule
+        var allOncalls: [Oncall] = []
+        let now = Date()
+        let nowString = Self.iso8601Formatter.string(from: now)
+
+        for schedule in schedulesResponse.schedules {
+            do {
+                let entries = try await fetchIncidentIOScheduleEntries(
+                    scheduleId: schedule.id,
+                    windowStart: nowString,
+                    windowEnd: nowString,
+                    apiToken: apiToken
+                )
+
+                // Convert entries to Oncall objects
+                for entry in entries {
+                    let oncall = Oncall(
+                        escalationPolicy: EscalationPolicy(
+                            id: schedule.id,
+                            type: "schedule",
+                            summary: schedule.name,
+                            htmlUrl: nil
+                        ),
+                        escalationLevel: 1,
+                        schedule: Schedule(
+                            id: schedule.id,
+                            type: "schedule",
+                            summary: schedule.name,
+                            htmlUrl: nil
+                        ),
+                        user: User(
+                            id: entry.user.id,
+                            type: "user",
+                            summary: entry.user.name,
+                            htmlUrl: nil
+                        ),
+                        start: entry.startAt,
+                        end: entry.endsAt
+                    )
+                    allOncalls.append(oncall)
+                }
+            } catch {
+                // Continue to next schedule if one fails
+                continue
+            }
+        }
+
+        return allOncalls
+    }
+
+    private func fetchIncidentIOScheduleEntries(
+        scheduleId: String,
+        windowStart: String,
+        windowEnd: String,
+        apiToken: String
+    ) async throws -> [IncidentIOScheduleEntry] {
+        let endpoint = "/v2/schedules/\(scheduleId)/entries"
+        guard var components = URLComponents(string: baseURL + endpoint) else {
+            throw OnCallError.invalidURL
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "window_start", value: windowStart),
+            URLQueryItem(name: "window_end", value: windowEnd)
+        ]
+
+        guard let url = components.url else {
+            throw OnCallError.invalidURL
+        }
+
+        let request = try buildIncidentIORequest(url: url, apiToken: apiToken)
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw OnCallError.invalidResponse
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            if httpResponse.statusCode == 401 {
+                throw OnCallError.unauthorized
+            } else if httpResponse.statusCode == 429 {
+                throw OnCallError.rateLimited
+            } else if httpResponse.statusCode >= 500 {
+                throw OnCallError.serverError(statusCode: httpResponse.statusCode)
+            } else {
+                throw OnCallError.apiError(
+                    technicalMessage: "HTTP \(httpResponse.statusCode)",
+                    userMessage: "Unable to complete request")
+            }
+        }
+
+        let decoder = JSONDecoder()
+        let entriesResponse = try decoder.decode(IncidentIOScheduleEntriesResponse.self, from: data)
+
+        return entriesResponse.scheduleEntries
     }
 
     private func processData(incidents: [Incident], oncalls: [Oncall]) -> AccountAlertSummary {
