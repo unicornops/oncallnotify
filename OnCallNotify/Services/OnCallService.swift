@@ -422,7 +422,9 @@ class AccountService {
             } else if httpResponse.statusCode >= 500 {
                 throw OnCallError.serverError(statusCode: httpResponse.statusCode)
             } else {
-                throw OnCallError.acknowledgmentFailed(message: "Failed to acknowledge incident")
+                throw OnCallError.acknowledgmentFailed(
+                    message: "Failed to acknowledge incident (HTTP \(httpResponse.statusCode))"
+                )
             }
         }
     }
@@ -746,6 +748,7 @@ class AccountService {
 
         // Fetch current on-call entries for each schedule
         var allOncalls: [Oncall] = []
+        var failedScheduleCount = 0
         let now = Date()
         let nowString = Self.iso8601Formatter.string(from: now)
 
@@ -786,9 +789,16 @@ class AccountService {
                     allOncalls.append(oncall)
                 }
             } catch {
-                // Continue to next schedule if one fails
+                // Log failure but continue to next schedule
+                failedScheduleCount += 1
+                Self.logger.warning("Failed to fetch schedule entries for \(schedule.id): \(error.localizedDescription)")
                 continue
             }
+        }
+        
+        // Log if all schedules failed
+        if failedScheduleCount == schedulesResponse.schedules.count && failedScheduleCount > 0 {
+            Self.logger.error("Failed to fetch entries from all \(failedScheduleCount) schedules")
         }
 
         return allOncalls
