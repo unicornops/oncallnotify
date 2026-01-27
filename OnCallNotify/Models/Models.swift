@@ -273,7 +273,7 @@ enum OnCallError: Error, LocalizedError {
                 "Unable to complete request. Please try again."
             }
         case let .apiError(_, userMessage):
-            userMessage ?? "Unable to connect to PagerDuty. Please check your token and connection."
+            userMessage ?? "Unable to connect to service. Please check your token and connection."
         case let .networkError(_, userMessage):
             userMessage ?? "Network connection error. Please check your internet connection."
         case let .acknowledgmentFailed(message):

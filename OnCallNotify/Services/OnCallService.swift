@@ -258,6 +258,14 @@ class AccountService {
     private static let iso8601Formatter = ISO8601DateFormatter()
     private let futureScheduleLookupDays: Int = 30
 
+    // incident.io API constants
+    private struct IncidentIOConstants {
+        static let acknowledgedStatus = "acknowledged"
+        static let incidentType = "incident"
+        static let scheduleType = "schedule"
+        static let userType = "user"
+    }
+
     private lazy var urlSession: URLSession = {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
@@ -391,7 +399,9 @@ class AccountService {
         request.httpMethod = "PATCH"
 
         let requestBody = IncidentIOUpdateIncidentRequest(
-            incident: IncidentIOUpdateIncidentRequest.IncidentIOUpdateIncidentBody(status: "acknowledged")
+            incident: IncidentIOUpdateIncidentRequest.IncidentIOUpdateIncidentBody(
+                status: IncidentIOConstants.acknowledgedStatus
+            )
         )
 
         let encoder = JSONEncoder()
@@ -686,7 +696,7 @@ class AccountService {
 
             let incident = Incident(
                 id: ioIncident.id,
-                type: "incident",
+                type: IncidentIOConstants.incidentType,
                 summary: ioIncident.summary ?? ioIncident.name,
                 status: status,
                 urgency: ioIncident.severity?.name ?? "unknown",
@@ -753,20 +763,20 @@ class AccountService {
                     let oncall = Oncall(
                         escalationPolicy: EscalationPolicy(
                             id: schedule.id,
-                            type: "schedule",
+                            type: IncidentIOConstants.scheduleType,
                             summary: schedule.name,
                             htmlUrl: nil
                         ),
                         escalationLevel: 1,
                         schedule: Schedule(
                             id: schedule.id,
-                            type: "schedule",
+                            type: IncidentIOConstants.scheduleType,
                             summary: schedule.name,
                             htmlUrl: nil
                         ),
                         user: User(
                             id: entry.user.id,
-                            type: "user",
+                            type: IncidentIOConstants.userType,
                             summary: entry.user.name,
                             htmlUrl: nil
                         ),
