@@ -163,6 +163,10 @@ struct UserDetail: Codable {
 
 enum ServiceType: String, Codable, CaseIterable {
     case pagerDuty = "PagerDuty"
+    case fireHydrant = "FireHydrant"
+    case incidentIO = "Incident.io"
+    case betterStack = "BetterStack"
+    case alertOps = "AlertOps"
     // Future services:
     // case atlassianCompass = "Atlassian Compass"
     // case jiraServiceManagement = "Jira Service Management"
@@ -172,6 +176,41 @@ enum ServiceType: String, Codable, CaseIterable {
 
     var displayName: String {
         rawValue
+    }
+
+    var apiTokenInstructions: String {
+        switch self {
+        case .pagerDuty:
+            return "Create an API token in your PagerDuty account under " +
+                "User Settings → API Access Keys."
+        case .fireHydrant:
+            return "Generate an API token in FireHydrant under Settings → API Tokens. " +
+                "Requires 'read:incidents' and 'write:incidents' scopes."
+        case .incidentIO:
+            return "Create an API key in Incident.io under Settings → API Keys. " +
+                "Use a key with 'incidents:read' and 'incidents:write' permissions."
+        case .betterStack:
+            return "Generate an API token in BetterStack under Account → API Tokens. " +
+                "Select 'Incidents' scope for full access."
+        case .alertOps:
+            return "Create an API key in AlertOps under Settings → API Configuration. " +
+                "Ensure it has 'Read Alerts' and 'Acknowledge Alerts' permissions."
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .pagerDuty:
+            return "bell.fill"
+        case .fireHydrant:
+            return "flame.fill"
+        case .incidentIO:
+            return "exclamationmark.triangle.fill"
+        case .betterStack:
+            return "chart.line.uptrend.xyaxis"
+        case .alertOps:
+            return "antenna.radiowaves.left.and.right"
+        }
     }
 }
 

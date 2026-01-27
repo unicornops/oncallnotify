@@ -238,10 +238,7 @@ struct AccountRowView: View {
     }
 
     private var serviceIcon: String {
-        switch account.serviceType {
-        case .pagerDuty:
-            "bell.fill"
-        }
+        account.serviceType.iconName
     }
 
     func testConnection() {
@@ -343,10 +340,7 @@ struct AddAccountView: View {
     }
 
     private var serviceInstructions: String {
-        switch serviceType {
-        case .pagerDuty:
-            "Create an API token in your PagerDuty account under User Settings → API Access Keys."
-        }
+        serviceType.apiTokenInstructions
     }
 
     private func saveAccount() {

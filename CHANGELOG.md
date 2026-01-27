@@ -2,6 +2,21 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [Unreleased]
+#### Features
+- Add support for FireHydrant incident management platform
+- Add support for Incident.io incident management platform
+- Add support for BetterStack uptime monitoring and incidents
+- Add support for AlertOps alert management platform
+- Implement protocol-based ServiceProvider architecture for extensibility
+- Add service-specific icons and API token instructions in UI
+- Support multiple accounts across different service providers
+#### Documentation
+- Add comprehensive SERVICES.md guide for all supported platforms
+- Update README.md to reflect multi-service support
+- Document API endpoints and rate limits for each service
+
+- - -
 ## v0.23.0 - 2026-01-26
 #### Features
 - Add multi-account support - core implementation - (2586afc) - copilot-swe-agent[bot]

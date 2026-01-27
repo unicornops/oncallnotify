@@ -10,8 +10,9 @@ A native macOS status bar application for monitoring your on-call alerts and sta
 
 ## Overview
 
-OnCall Notify is your unified on-call status monitor for macOS. Currently supporting **PagerDuty** with
-plans to add support for additional on-call and incident management platforms in future releases.
+OnCall Notify is your unified on-call status monitor for macOS. Supporting **PagerDuty**, **FireHydrant**,
+**Incident.io**, **BetterStack**, and **AlertOps** with a clean, extensible architecture for adding more
+on-call and incident management platforms.
 
 ## Features
 
@@ -32,6 +33,10 @@ plans to add support for additional on-call and incident management platforms in
 ### Currently Supported
 
 - ✅ **PagerDuty** - Full support for incidents and on-call schedules
+- ✅ **FireHydrant** - Incident monitoring and acknowledgment
+- ✅ **Incident.io** - Active incident tracking and status updates
+- ✅ **BetterStack** - Uptime and incident monitoring
+- ✅ **AlertOps** - Alert management and acknowledgment
 
 ### Coming Soon
 
