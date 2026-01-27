@@ -648,7 +648,7 @@ class AccountService {
 
         // Create a service object
         let service = Service(
-            id: attrs.escalationPolicyId ?? "unknown",
+            id: attrs.escalationPolicyId ?? "betterstack-service-\(betterStackIncident.id)",
             type: "service",
             summary: attrs.teamName ?? "Better Stack",
             htmlUrl: attrs.url
@@ -659,7 +659,7 @@ class AccountService {
             type: "incident",
             summary: attrs.name,
             status: status,
-            urgency: "high", // Better Stack doesn't have urgency levels
+            urgency: "high", // Better Stack doesn't have granular urgency levels - all incidents are high priority
             title: attrs.name,
             createdAt: attrs.startedAt,
             updatedAt: attrs.acknowledgedAt ?? attrs.resolvedAt,
@@ -671,7 +671,7 @@ class AccountService {
                 Acknowledgement(
                     at: attrs.acknowledgedAt!,
                     acknowledger: User(
-                        id: "unknown",
+                        id: attrs.acknowledgedBy ?? "betterstack-user-\(betterStackIncident.id)",
                         type: "user",
                         summary: attrs.acknowledgedBy ?? "Unknown",
                         htmlUrl: nil
@@ -692,8 +692,11 @@ class AccountService {
             return nil
         }
 
+        // Use email as fallback ID to ensure uniqueness
+        let userId = currentOncall.userId ?? "betterstack-user-\(userEmail.lowercased())"
+
         let user = User(
-            id: currentOncall.userId ?? "unknown",
+            id: userId,
             type: "user",
             summary: currentOncall.userName ?? userEmail,
             htmlUrl: nil
@@ -706,8 +709,9 @@ class AccountService {
             htmlUrl: nil
         )
 
+        // Use schedule ID as prefix for escalation policy to ensure uniqueness
         let escalationPolicy = EscalationPolicy(
-            id: "default",
+            id: "betterstack-policy-\(betterStackOncall.id)",
             type: "escalation_policy",
             summary: attrs.teamName ?? "Default",
             htmlUrl: nil
