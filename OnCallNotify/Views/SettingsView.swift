@@ -241,6 +241,8 @@ struct AccountRowView: View {
         switch account.serviceType {
         case .pagerDuty:
             "bell.fill"
+        case .betterStack:
+            "chart.line.uptrend.xyaxis"
         }
     }
 
@@ -346,6 +348,8 @@ struct AddAccountView: View {
         switch serviceType {
         case .pagerDuty:
             "Create an API token in your PagerDuty account under User Settings → API Access Keys."
+        case .betterStack:
+            "Create an API token in your Better Stack account under Team Settings → API Tokens."
         }
     }
 

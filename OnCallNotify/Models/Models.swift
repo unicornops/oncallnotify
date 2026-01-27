@@ -163,6 +163,7 @@ struct UserDetail: Codable {
 
 enum ServiceType: String, Codable, CaseIterable {
     case pagerDuty = "PagerDuty"
+    case betterStack = "Better Stack"
     // Future services:
     // case atlassianCompass = "Atlassian Compass"
     // case jiraServiceManagement = "Jira Service Management"
@@ -238,6 +239,94 @@ struct AcknowledgeIncidentRequest: Codable {
 
 struct AcknowledgeIncidentResponse: Codable {
     let incident: Incident
+}
+
+// MARK: - Better Stack Models
+
+struct BetterStackIncidentsResponse: Codable {
+    let data: [BetterStackIncidentData]
+    let pagination: BetterStackPagination?
+}
+
+struct BetterStackIncidentData: Codable {
+    let id: String
+    let type: String
+    let attributes: BetterStackIncidentAttributes
+}
+
+struct BetterStackIncidentAttributes: Codable {
+    let name: String
+    let url: String?
+    let cause: String?
+    let startedAt: String
+    let acknowledgedAt: String?
+    let acknowledgedBy: String?
+    let resolvedAt: String?
+    let resolvedBy: String?
+    let status: String // "Unconfirmed", "Started", "Acknowledged", "Resolved", "Validating"
+    let teamName: String?
+    let escalationPolicyId: String?
+    let call: Bool?
+    let sms: Bool?
+    let email: Bool?
+    let push: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case name, url, cause, status
+        case startedAt = "started_at"
+        case acknowledgedAt = "acknowledged_at"
+        case acknowledgedBy = "acknowledged_by"
+        case resolvedAt = "resolved_at"
+        case resolvedBy = "resolved_by"
+        case teamName = "team_name"
+        case escalationPolicyId = "escalation_policy_id"
+        case call, sms, email, push
+    }
+}
+
+struct BetterStackPagination: Codable {
+    let first: String?
+    let last: String?
+    let prev: String?
+    let next: String?
+}
+
+struct BetterStackOnCallsResponse: Codable {
+    let data: [BetterStackOnCallData]
+}
+
+struct BetterStackOnCallData: Codable {
+    let id: String
+    let type: String
+    let attributes: BetterStackOnCallAttributes
+}
+
+struct BetterStackOnCallAttributes: Codable {
+    let name: String
+    let teamName: String?
+    let onCall: BetterStackCurrentOnCall?
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case teamName = "team_name"
+        case onCall = "current_oncall"
+    }
+}
+
+struct BetterStackCurrentOnCall: Codable {
+    let userId: String?
+    let userName: String?
+    let userEmail: String?
+    let startsAt: String?
+    let endsAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+        case userName = "user_name"
+        case userEmail = "user_email"
+        case startsAt = "starts_at"
+        case endsAt = "ends_at"
+    }
 }
 
 // MARK: - Error Models

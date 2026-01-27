@@ -247,7 +247,6 @@ class OnCallService: ObservableObject {
 /// Service that manages API calls for a single account
 class AccountService {
     private var account: Account
-    private let baseURL = "https://api.pagerduty.com"
     private var currentUserId: String?
 
     // Track previous state for change detection per account
@@ -277,21 +276,56 @@ class AccountService {
         self.account = newAccount
     }
 
+    // MARK: - Service-specific properties
+
+    private var baseURL: String {
+        switch account.serviceType {
+        case .pagerDuty:
+            return "https://api.pagerduty.com"
+        case .betterStack:
+            return "https://uptime.betterstack.com"
+        }
+    }
+
     // MARK: - Main Fetch
 
     func fetchData() async throws -> AccountAlertSummary {
+        switch account.serviceType {
+        case .pagerDuty:
+            return try await fetchPagerDutyData()
+        case .betterStack:
+            return try await fetchBetterStackData()
+        }
+    }
+
+    private func fetchPagerDutyData() async throws -> AccountAlertSummary {
         guard let apiToken = KeychainHelper.shared.getAPIToken(forAccountId: account.id) else {
             throw OnCallError.noAPIToken
         }
 
         // First, get current user ID if we don't have it
         if currentUserId == nil {
-            try await fetchCurrentUser(apiToken: apiToken)
+            try await fetchPagerDutyCurrentUser(apiToken: apiToken)
         }
 
         // Fetch incidents and on-call status in parallel
-        async let incidents = fetchIncidents(apiToken: apiToken)
-        async let oncalls = fetchOncalls(apiToken: apiToken)
+        async let incidents = fetchPagerDutyIncidents(apiToken: apiToken)
+        async let oncalls = fetchPagerDutyOncalls(apiToken: apiToken)
+
+        let (fetchedIncidents, fetchedOncalls) = try await (incidents, oncalls)
+
+        // Process and return summary
+        return processData(incidents: fetchedIncidents, oncalls: fetchedOncalls)
+    }
+
+    private func fetchBetterStackData() async throws -> AccountAlertSummary {
+        guard let apiToken = KeychainHelper.shared.getAPIToken(forAccountId: account.id) else {
+            throw OnCallError.noAPIToken
+        }
+
+        // Fetch incidents and on-call status in parallel
+        async let incidents = fetchBetterStackIncidents(apiToken: apiToken)
+        async let oncalls = fetchBetterStackOncalls(apiToken: apiToken)
 
         let (fetchedIncidents, fetchedOncalls) = try await (incidents, oncalls)
 
@@ -306,13 +340,25 @@ class AccountService {
     }
 
     func performAcknowledgment(incidentId: String) async throws {
+        switch account.serviceType {
+        case .pagerDuty:
+            try await performPagerDutyAcknowledgment(incidentId: incidentId)
+        case .betterStack:
+            // Better Stack doesn't support programmatic acknowledgment via API
+            throw OnCallError.acknowledgmentFailed(
+                message: "Better Stack does not support incident acknowledgment via API"
+            )
+        }
+    }
+
+    private func performPagerDutyAcknowledgment(incidentId: String) async throws {
         guard let apiToken = KeychainHelper.shared.getAPIToken(forAccountId: account.id) else {
             throw OnCallError.noAPIToken
         }
 
         let endpoint = "/incidents/\(incidentId)"
         let url = try buildURL(endpoint: endpoint)
-        var request = try buildRequest(url: url, apiToken: apiToken)
+        var request = try buildPagerDutyRequest(url: url, apiToken: apiToken)
 
         request.httpMethod = "PUT"
 
@@ -349,19 +395,26 @@ class AccountService {
         }
 
         do {
-            try await fetchCurrentUser(apiToken: apiToken)
-            return true
+            switch account.serviceType {
+            case .pagerDuty:
+                try await fetchPagerDutyCurrentUser(apiToken: apiToken)
+                return true
+            case .betterStack:
+                // For Better Stack, try to fetch on-call schedules as a connection test
+                _ = try await fetchBetterStackOncalls(apiToken: apiToken)
+                return true
+            }
         } catch {
             return false
         }
     }
 
-    // MARK: - Private API Methods
+    // MARK: - PagerDuty API Methods
 
-    private func fetchCurrentUser(apiToken: String) async throws {
+    private func fetchPagerDutyCurrentUser(apiToken: String) async throws {
         let endpoint = "/users/me"
         let url = try buildURL(endpoint: endpoint)
-        let request = try buildRequest(url: url, apiToken: apiToken)
+        let request = try buildPagerDutyRequest(url: url, apiToken: apiToken)
 
         let (data, response) = try await urlSession.data(for: request)
 
@@ -388,7 +441,7 @@ class AccountService {
         currentUserId = userResponse.user.id
     }
 
-    private func fetchIncidents(apiToken: String) async throws -> [Incident] {
+    private func fetchPagerDutyIncidents(apiToken: String) async throws -> [Incident] {
         let endpoint = "/incidents"
         guard var components = URLComponents(string: baseURL + endpoint) else {
             throw OnCallError.invalidURL
@@ -409,7 +462,7 @@ class AccountService {
             throw OnCallError.invalidURL
         }
 
-        let request = try buildRequest(url: url, apiToken: apiToken)
+        let request = try buildPagerDutyRequest(url: url, apiToken: apiToken)
         let (data, response) = try await urlSession.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -441,7 +494,7 @@ class AccountService {
         }
     }
 
-    private func fetchOncalls(apiToken: String) async throws -> [Oncall] {
+    private func fetchPagerDutyOncalls(apiToken: String) async throws -> [Oncall] {
         let endpoint = "/oncalls"
         guard var components = URLComponents(string: baseURL + endpoint) else {
             throw OnCallError.invalidURL
@@ -474,7 +527,7 @@ class AccountService {
             throw OnCallError.invalidURL
         }
 
-        let request = try buildRequest(url: url, apiToken: apiToken)
+        let request = try buildPagerDutyRequest(url: url, apiToken: apiToken)
         let (data, response) = try await urlSession.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -501,6 +554,175 @@ class AccountService {
         return oncallsResponse.oncalls
     }
 
+    // MARK: - Better Stack API Methods
+
+    private func fetchBetterStackIncidents(apiToken: String) async throws -> [Incident] {
+        let endpoint = "/api/v3/incidents"
+        guard let url = URL(string: baseURL + endpoint) else {
+            throw OnCallError.invalidURL
+        }
+
+        let request = try buildBetterStackRequest(url: url, apiToken: apiToken)
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw OnCallError.invalidResponse
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            if httpResponse.statusCode == 401 {
+                throw OnCallError.unauthorized
+            } else if httpResponse.statusCode == 429 {
+                throw OnCallError.rateLimited
+            } else if httpResponse.statusCode >= 500 {
+                throw OnCallError.serverError(statusCode: httpResponse.statusCode)
+            } else {
+                throw OnCallError.apiError(
+                    technicalMessage: "HTTP \(httpResponse.statusCode)",
+                    userMessage: "Unable to complete request")
+            }
+        }
+
+        let decoder = JSONDecoder()
+        let incidentsResponse = try decoder.decode(BetterStackIncidentsResponse.self, from: data)
+
+        // Convert Better Stack incidents to common Incident model
+        return incidentsResponse.data.compactMap { betterStackIncident -> Incident? in
+            convertBetterStackIncident(betterStackIncident)
+        }
+    }
+
+    private func fetchBetterStackOncalls(apiToken: String) async throws -> [Oncall] {
+        let endpoint = "/api/v2/on-calls"
+        guard let url = URL(string: baseURL + endpoint) else {
+            throw OnCallError.invalidURL
+        }
+
+        let request = try buildBetterStackRequest(url: url, apiToken: apiToken)
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw OnCallError.invalidResponse
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            if httpResponse.statusCode == 401 {
+                throw OnCallError.unauthorized
+            } else if httpResponse.statusCode == 429 {
+                throw OnCallError.rateLimited
+            } else if httpResponse.statusCode >= 500 {
+                throw OnCallError.serverError(statusCode: httpResponse.statusCode)
+            } else {
+                throw OnCallError.apiError(
+                    technicalMessage: "HTTP \(httpResponse.statusCode)",
+                    userMessage: "Unable to complete request")
+            }
+        }
+
+        let decoder = JSONDecoder()
+        let oncallsResponse = try decoder.decode(BetterStackOnCallsResponse.self, from: data)
+
+        // Convert Better Stack on-calls to common Oncall model
+        return oncallsResponse.data.compactMap { betterStackOncall -> Oncall? in
+            convertBetterStackOncall(betterStackOncall)
+        }
+    }
+
+    // MARK: - Better Stack Conversion Helpers
+
+    private func convertBetterStackIncident(_ betterStackIncident: BetterStackIncidentData) -> Incident? {
+        let attrs = betterStackIncident.attributes
+
+        // Map Better Stack status to our IncidentStatus
+        let status: IncidentStatus
+        switch attrs.status.lowercased() {
+        case "started", "unconfirmed", "validating":
+            status = .triggered
+        case "acknowledged":
+            status = .acknowledged
+        case "resolved":
+            status = .resolved
+        default:
+            status = .triggered
+        }
+
+        // Create a service object
+        let service = Service(
+            id: attrs.escalationPolicyId ?? "unknown",
+            type: "service",
+            summary: attrs.teamName ?? "Better Stack",
+            htmlUrl: attrs.url
+        )
+
+        return Incident(
+            id: betterStackIncident.id,
+            type: "incident",
+            summary: attrs.name,
+            status: status,
+            urgency: "high", // Better Stack doesn't have urgency levels
+            title: attrs.name,
+            createdAt: attrs.startedAt,
+            updatedAt: attrs.acknowledgedAt ?? attrs.resolvedAt,
+            htmlUrl: attrs.url,
+            incidentNumber: nil,
+            service: service,
+            assignments: nil,
+            acknowledgements: attrs.acknowledgedAt != nil ? [
+                Acknowledgement(
+                    at: attrs.acknowledgedAt!,
+                    acknowledger: User(
+                        id: "unknown",
+                        type: "user",
+                        summary: attrs.acknowledgedBy ?? "Unknown",
+                        htmlUrl: nil
+                    )
+                )
+            ] : nil,
+            lastStatusChangeAt: attrs.acknowledgedAt ?? attrs.resolvedAt,
+            accountId: account.id
+        )
+    }
+
+    private func convertBetterStackOncall(_ betterStackOncall: BetterStackOnCallData) -> Oncall? {
+        let attrs = betterStackOncall.attributes
+
+        // Only return if there's a current on-call user
+        guard let currentOncall = attrs.onCall,
+              let userEmail = currentOncall.userEmail else {
+            return nil
+        }
+
+        let user = User(
+            id: currentOncall.userId ?? "unknown",
+            type: "user",
+            summary: currentOncall.userName ?? userEmail,
+            htmlUrl: nil
+        )
+
+        let schedule = Schedule(
+            id: betterStackOncall.id,
+            type: "schedule",
+            summary: attrs.name,
+            htmlUrl: nil
+        )
+
+        let escalationPolicy = EscalationPolicy(
+            id: "default",
+            type: "escalation_policy",
+            summary: attrs.teamName ?? "Default",
+            htmlUrl: nil
+        )
+
+        return Oncall(
+            escalationPolicy: escalationPolicy,
+            escalationLevel: 1,
+            schedule: schedule,
+            user: user,
+            start: currentOncall.startsAt,
+            end: currentOncall.endsAt
+        )
+    }
+
     // MARK: - Helper Methods
 
     private func buildURL(endpoint: String) throws -> URL {
@@ -510,10 +732,20 @@ class AccountService {
         return url
     }
 
-    private func buildRequest(url: URL, apiToken: String) throws -> URLRequest {
+    private func buildPagerDutyRequest(url: URL, apiToken: String) throws -> URLRequest {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Token token=\(apiToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        return request
+    }
+
+    private func buildBetterStackRequest(url: URL, apiToken: String) throws -> URLRequest {
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(apiToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.cachePolicy = .reloadIgnoringLocalCacheData
