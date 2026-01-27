@@ -5,7 +5,7 @@ This file provides guidance for AI coding agents working on the OnCall Notify ma
 ## Project Overview
 
 OnCall Notify is a native macOS status bar application written in Swift that monitors on-call alerts and
-status across multiple incident management services. Currently supporting **PagerDuty** with architecture
+status across multiple incident management services. Currently supporting **PagerDuty** and **AlertOps** with architecture
 designed for easy addition of more services. It uses SwiftUI for the UI, AppKit for menu bar integration,
 and the macOS Keychain for secure credential storage.
 
@@ -16,8 +16,8 @@ and the macOS Keychain for secure credential storage.
 - Target: macOS 13.0+ (Ventura and later)
 - Architecture: MVVM pattern with service abstraction layer
 - No external dependencies (pure Swift)
-- Total LOC: ~1,300 lines across 7 Swift files
-- **Current Services**: PagerDuty
+- Total LOC: ~2,000 lines across 10 Swift files
+- **Current Services**: PagerDuty, AlertOps
 - **Planned Services**: Atlassian Compass, Atlassian Jira Service Management, VictorOps, Alertmanager, Custom Webhooks
 
 ### Data Flow
@@ -39,23 +39,26 @@ and the macOS Keychain for secure credential storage.
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                   OnCallService                                 │
-│  • Fetches data from API every 60 seconds                       │
+│  • Manages multiple service providers via protocol             │
+│  • Fetches data from APIs every 60 seconds                     │
 │  • Processes incidents and on-call schedules                    │
 │  • Updates @Published alertSummary                              │
-│  • Currently: PagerDuty implementation                          │
-│  • Future: Multi-service abstraction                            │
+│  • Current Services: PagerDuty, AlertOps                        │
+│  • Service abstraction via OnCallServiceProvider protocol      │
 └────────────────────────────┬────────────────────────────────────┘
                              │
                    ┌─────────┴─────────┐
                    │                   │
                    ▼                   ▼
-        ┌──────────────────┐  ┌──────────────────┐
-        │  KeychainHelper  │  │  PagerDuty API   │
-        │  • Get API token │  │  • GET /users/me │
-        │  • Secure storage│  │  • GET /incidents│
-        │  • Service: com. │  │  • GET /oncalls  │
-        │    oncall.notify │  └──────────────────┘
-        └──────────────────┘           │
+        ┌──────────────────┐  ┌────────────────────────────────┐
+        │  KeychainHelper  │  │  Service Providers (Protocol)  │
+        │  • Get API token │  │  • PagerDutyService            │
+        │  • Secure storage│  │  • AlertOpsService             │
+        │  • Service: com. │  │  • GET /users/me               │
+        │    oncall.notify │  │  • GET /incidents              │
+        └──────────────────┘  │  • GET /oncalls or /schedules  │
+                              └────────────────────────────────┘
+                                       │
                                        ▼
                               ┌──────────────────┐
                               │   Models.swift   │
@@ -119,7 +122,11 @@ OnCallNotify/
 ├── Models/
 │   └── Models.swift              # All data models: Incident, Oncall, User, etc.
 ├── Services/
-│   ├── OnCallService.swift       # Service abstraction layer (currently PagerDuty)
+│   ├── OnCallService.swift       # Service coordinator for all providers
+│   ├── OnCallServiceProvider.swift # Protocol for service abstraction
+│   ├── PagerDutyService.swift    # PagerDuty API implementation
+│   ├── AlertOpsService.swift     # AlertOps API implementation
+│   ├── NotificationService.swift # macOS notification handling
 │   └── KeychainHelper.swift      # Secure API token storage in macOS Keychain
 ├── Views/
 │   ├── MenuView.swift            # Popover menu UI with alerts and on-call status
@@ -165,32 +172,52 @@ OnCallNotify/
 
 ## API Integration Details
 
-### PagerDuty REST API v2 (Current)
+### PagerDuty REST API v2
 
 - Base URL: `https://api.pagerduty.com`
 - Authentication: Bearer token in `Authorization` header format: `Token token=YOUR_TOKEN`
 - All requests require: `Accept: application/json` and `Content-Type: application/json` headers
 
-### Endpoints Used
+#### Endpoints Used
 
 1. `GET /users/me` - Get current user info (cached after first fetch)
 2. `GET /incidents` - Fetch incidents with filters: `statuses[]=triggered&statuses[]=acknowledged&user_ids[]=<user_id>&limit=100`
 3. `GET /oncalls` - Fetch on-call schedules with `user_ids[]=<user_id>&include[]=users&include[]=schedules`
+
+### AlertOps REST API v2
+
+- Base URL: `https://api.alertops.com`
+- Authentication: API key in `api-key` header
+- All requests require: `Accept: application/json` and `Content-Type: application/json` headers
+
+#### Endpoints Used
+
+1. `GET /api/v2/users/me` - Get current user info (cached after first fetch)
+2. `GET /api/v2/incidents` - Fetch incidents with filters: `status=Open&assigned_to=<user_name>&limit=100`
+3. `GET /api/v2/schedules` - Fetch schedules with current on-call information
+4. `POST /api/v2/incidents/{id}/acknowledge` - Acknowledge an incident
 
 ### Data Models
 
 - All API responses use `Codable` for JSON parsing
 - Use `ISO8601DateFormatter` for date/time parsing
 - CodingKeys map snake_case (API) to camelCase (Swift)
-- Models prefixed with `PagerDuty` for service-specific responses
-- Generic models like `AlertSummary` are service-agnostic
+- Models prefixed with service name for service-specific responses (e.g., `PagerDutyIncidentsResponse`, `AlertOpsIncidentsResponse`)
+- Generic models like `Incident`, `Oncall`, `AlertSummary` are service-agnostic
+- Service implementations map service-specific responses to common models
 
-### Future Service Integration Guidelines
+### Service Integration Guidelines
 
 When adding new services:
 
-1. Create service-specific response models (e.g., `AtlassianCompassIncidentsResponse`)
+1. Create service-specific response models in `Models.swift` (e.g., `NewServiceIncidentsResponse`)
 2. Map to common internal models (`Incident`, `Oncall`, `AlertSummary`)
+3. Create a new service class implementing `OnCallServiceProvider` protocol
+4. Add new service type to `ServiceType` enum in `Models.swift`
+5. Update service factory in `OnCallService.createService(for:)` method
+6. Use separate Keychain entries per account (already supported)
+7. Add service-specific UI elements in `SettingsView` (icon, instructions)
+8. Maintain backward compatibility with existing service integrations
 3. Consider creating a protocol for service abstraction
 4. Use separate Keychain entries per service
 5. Maintain backward compatibility with existing PagerDuty integration
@@ -652,48 +679,44 @@ log show --predicate 'process == "OnCallNotify"' --last 5m
 
 Current constraints to be aware of:
 
-- Read-only access (cannot acknowledge/resolve incidents from app)
-- Single service support (PagerDuty only, multi-service coming)
-- Single account per service
+- Read-only incident management for AlertOps (acknowledgment support added, resolution pending)
 - Fixed 60-second refresh interval (code change required)
 - Shows only user's assigned incidents
-- No desktop notifications yet
 - No offline mode (requires internet connection)
 
 ## Future Enhancements Roadmap
 
-### Phase 1 (Current - PagerDuty)
+### Phase 1 (Completed - Multi-Service Foundation)
 
 - [x] PagerDuty integration
 - [x] Basic alert monitoring
 - [x] On-call status display
 - [x] Incident acknowledgment from app
+- [x] Multi-account support
+- [x] Service abstraction layer (OnCallServiceProvider protocol)
+- [x] AlertOps integration
 
 ### Phase 2 (Near Term)
 
-1. Desktop notifications for new incidents
+1. Desktop notifications for new incidents (partially complete)
 2. Customizable refresh interval in Settings
 3. Sound alerts
-4. Incident resolution from app
+4. Incident resolution from app (expand to all services)
 
-### Phase 3 (Multi-Service)
+### Phase 3 (Additional Services)
 
-1. Service abstraction layer
-2. Atlassian Compass integration
-3. Atlassian Jira Service Management integration
-4. VictorOps/Splunk On-Call integration
-5. Service selection UI in Settings
-6. Per-service configuration
+1. Atlassian Compass integration
+2. Atlassian Jira Service Management integration
+3. VictorOps/Splunk On-Call integration
+4. Alertmanager integration
+5. Custom webhook support
 
 ### Phase 4 (Advanced)
 
-1. Multiple account support across services
-2. Alertmanager integration
-3. Custom webhook support
-4. Advanced filtering (by service, urgency, team)
-5. Historical incident view
-6. Keyboard shortcuts
-7. Export incident data
+1. Advanced filtering (by service, urgency, team)
+2. Historical incident view
+3. Keyboard shortcuts
+4. Export incident data
 8. Multi-team support
 
 ## Multi-Service Architecture Guidelines
@@ -779,6 +802,7 @@ protocol OnCallServiceProtocol {
 - **Repository**: [github.com/unicornops/oncall-notify](https://github.com/unicornops/oncall-notify)
 - **Security Issues**: Use GitHub Security Advisories (private reporting)
 - **PagerDuty API Docs**: <https://developer.pagerduty.com/docs/rest-api-v2/>
+- **AlertOps API Docs**: <https://api.alertops.com/help>
 - **Swift Language Guide**: <https://docs.swift.org/swift-book/>
 - **SwiftUI Tutorials**: <https://developer.apple.com/tutorials/swiftui>
 - **macOS HIG**: <https://developer.apple.com/design/human-interface-guidelines/macos>
@@ -787,8 +811,8 @@ protocol OnCallServiceProtocol {
 
 ---
 
-**Last Updated**: 2024-12-09  
+**Last Updated**: 2026-01-27  
 **Project Version**: 1.0.0  
-**Current Service Support**: PagerDuty  
+**Current Service Support**: PagerDuty, AlertOps  
 **Security Status**: 🔴 Critical fixes needed (see SECURITY.md)  
 **Agent-Friendly**: This file is designed to help AI coding agents understand and contribute to the project effectively.

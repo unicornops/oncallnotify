@@ -2,6 +2,16 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [Unreleased]
+#### Features
+- Add support for AlertOps as a paging provider - copilot-swe-agent[bot]
+  - Created OnCallServiceProvider protocol for service abstraction
+  - Implemented AlertOpsService with full incident and on-call support
+  - Refactored PagerDuty implementation to use protocol pattern
+  - Added AlertOps-specific API models and authentication
+  - Updated UI to support AlertOps service selection
+
+- - -
 ## v0.23.0 - 2026-01-26
 #### Features
 - Add multi-account support - core implementation - (2586afc) - copilot-swe-agent[bot]

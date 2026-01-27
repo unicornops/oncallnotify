@@ -32,6 +32,7 @@ plans to add support for additional on-call and incident management platforms in
 ### Currently Supported
 
 - ✅ **PagerDuty** - Full support for incidents and on-call schedules
+- ✅ **AlertOps** - Full support for incidents and on-call schedules
 
 ### Coming Soon
 
@@ -81,7 +82,7 @@ Manage your accounts with:
 
 - macOS 13.0 (Ventura) or later
 - Xcode 15.0 or later (for building)
-- Account with a supported service (currently PagerDuty)
+- Account with a supported service (PagerDuty or AlertOps)
 
 ## Installation
 
@@ -113,7 +114,9 @@ Pre-built releases will be available in the GitHub Releases section.
 
 ## Configuration
 
-### Getting Your PagerDuty API Token
+### Getting Your API Token
+
+#### PagerDuty
 
 1. Log in to your PagerDuty account
 2. Go to **User Settings** → **User Settings**
@@ -122,15 +125,23 @@ Pre-built releases will be available in the GitHub Releases section.
 5. Give it a description (e.g., "OnCall Notify macOS App")
 6. Copy the generated token
 
+#### AlertOps
+
+1. Log in to your AlertOps account
+2. Go to **User Profile** → **API Keys**
+3. Click **Create API Key** or use an existing one
+4. Give it a description (e.g., "OnCall Notify macOS App")
+5. Copy the generated API key
+
 ### Setting Up the App
 
 1. Launch OnCall Notify (it will appear in your menu bar)
 2. Click the menu bar icon
 3. Click the gear icon (⚙️) to open Settings
 4. Click "Add Account" to add your first account
-5. Enter a friendly name for the account (e.g., "Work PagerDuty")
-6. Select the service type (currently only PagerDuty is supported)
-7. Paste your API token
+5. Enter a friendly name for the account (e.g., "Work PagerDuty" or "Work AlertOps")
+6. Select the service type (PagerDuty or AlertOps)
+7. Paste your API token/key
 8. Click "Add Account"
 9. Test the connection using the network icon
 10. Add additional accounts as needed by repeating steps 4-9
