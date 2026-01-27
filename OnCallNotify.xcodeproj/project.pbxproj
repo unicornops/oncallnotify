@@ -16,6 +16,9 @@
 		A10000001ABC000000000013 /* MenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000001ABC000000000014 /* MenuView.swift */; };
 		A10000001ABC000000000015 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10000001ABC000000000016 /* Assets.xcassets */; };
 		A10000001ABC000000000036 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000001ABC000000000037 /* NotificationService.swift */; };
+		A10000001ABC000000000038 /* OnCallServiceProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000001ABC000000000039 /* OnCallServiceProvider.swift */; };
+		A10000001ABC000000000040 /* PagerDutyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000001ABC000000000041 /* PagerDutyService.swift */; };
+		A10000001ABC000000000042 /* AlertOpsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000001ABC000000000043 /* AlertOpsService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -30,6 +33,9 @@
 		A10000001ABC000000000017 /* OnCallNotify.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OnCallNotify.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000001ABC000000000018 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A10000001ABC000000000037 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+		A10000001ABC000000000039 /* OnCallServiceProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnCallServiceProvider.swift; sourceTree = "<group>"; };
+		A10000001ABC000000000041 /* PagerDutyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PagerDutyService.swift; sourceTree = "<group>"; };
+		A10000001ABC000000000043 /* AlertOpsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertOpsService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -87,6 +93,9 @@
 				A10000001ABC000000000006 /* OnCallService.swift */,
 				A10000001ABC000000000008 /* KeychainHelper.swift */,
 				A10000001ABC000000000037 /* NotificationService.swift */,
+				A10000001ABC000000000039 /* OnCallServiceProvider.swift */,
+				A10000001ABC000000000041 /* PagerDutyService.swift */,
+				A10000001ABC000000000043 /* AlertOpsService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -177,6 +186,9 @@
 				A10000001ABC000000000011 /* SettingsView.swift in Sources */,
 				A10000001ABC000000000013 /* MenuView.swift in Sources */,
 				A10000001ABC000000000036 /* NotificationService.swift in Sources */,
+				A10000001ABC000000000038 /* OnCallServiceProvider.swift in Sources */,
+				A10000001ABC000000000040 /* PagerDutyService.swift in Sources */,
+				A10000001ABC000000000042 /* AlertOpsService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

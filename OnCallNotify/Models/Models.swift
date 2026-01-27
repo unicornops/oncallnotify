@@ -159,10 +159,87 @@ struct UserDetail: Codable {
     }
 }
 
+// MARK: - AlertOps Response Models
+
+struct AlertOpsIncidentsResponse: Codable {
+    let incidents: [AlertOpsIncident]
+    let total: Int?
+    let page: Int?
+    let pageSize: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case incidents, total, page
+        case pageSize = "page_size"
+    }
+}
+
+struct AlertOpsIncident: Codable {
+    let id: String
+    let status: String
+    let priority: String?
+    let createdAt: String
+    let updatedAt: String?
+    let title: String
+    let description: String?
+    let assignedTo: String?
+    let service: String?
+    let severity: String?
+    let escalationPolicy: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, status, priority, title, description, service, severity
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case assignedTo = "assigned_to"
+        case escalationPolicy = "escalation_policy"
+    }
+}
+
+struct AlertOpsSchedulesResponse: Codable {
+    let schedules: [AlertOpsSchedule]
+}
+
+struct AlertOpsSchedule: Codable {
+    let id: String
+    let name: String
+    let currentOncall: [AlertOpsOncallUser]?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name
+        case currentOncall = "current_oncall"
+    }
+}
+
+struct AlertOpsOncallUser: Codable {
+    let userId: String
+    let userName: String
+    let userEmail: String?
+    let start: String?
+    let end: String?
+
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+        case userName = "user_name"
+        case userEmail = "user_email"
+        case start, end
+    }
+}
+
+struct AlertOpsUserResponse: Codable {
+    let user: AlertOpsUser
+}
+
+struct AlertOpsUser: Codable {
+    let id: String
+    let name: String
+    let email: String
+}
+
 // MARK: - Multi-Account Models
 
 enum ServiceType: String, Codable, CaseIterable {
     case pagerDuty = "PagerDuty"
+    case alertOps = "AlertOps"
     // Future services:
     // case atlassianCompass = "Atlassian Compass"
     // case jiraServiceManagement = "Jira Service Management"

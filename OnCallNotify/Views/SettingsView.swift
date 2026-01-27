@@ -241,6 +241,8 @@ struct AccountRowView: View {
         switch account.serviceType {
         case .pagerDuty:
             "bell.fill"
+        case .alertOps:
+            "exclamationmark.triangle.fill"
         }
     }
 
@@ -346,6 +348,8 @@ struct AddAccountView: View {
         switch serviceType {
         case .pagerDuty:
             "Create an API token in your PagerDuty account under User Settings → API Access Keys."
+        case .alertOps:
+            "Create an API key in your AlertOps account under User Profile → API Keys."
         }
     }
 
