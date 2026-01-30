@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.23.3 - 2026-01-30
+#### Bug Fixes
+- use sheet(item:) for edit account to pass account data correctly - (6d8bba5) - Rob Lazzurs
+
+- - -
+
 ## v0.23.2 - 2026-01-30
 #### Bug Fixes
 - add account editing and allow + in API tokens - (d115a25) - Rob Lazzurs
