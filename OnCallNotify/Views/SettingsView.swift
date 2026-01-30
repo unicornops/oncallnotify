@@ -10,7 +10,6 @@ import SwiftUI
 struct SettingsView: View {
     @State private var accounts: [Account] = []
     @State private var showingAddAccount = false
-    @State private var showingEditAccount = false
     @State private var accountToEdit: Account?
     @State private var showError: Bool = false
     @State private var errorMessage: String = ""
@@ -106,21 +105,17 @@ struct SettingsView: View {
                 showingAddAccount = false
             })
         }
-        .sheet(isPresented: $showingEditAccount) {
-            if let account = accountToEdit {
-                EditAccountView(
-                    account: account,
-                    onSave: { updatedAccount, newToken in
-                        updateAccount(updatedAccount, newToken: newToken)
-                        showingEditAccount = false
-                        accountToEdit = nil
-                    },
-                    onCancel: {
-                        showingEditAccount = false
-                        accountToEdit = nil
-                    }
-                )
-            }
+        .sheet(item: $accountToEdit) { account in
+            EditAccountView(
+                account: account,
+                onSave: { updatedAccount, newToken in
+                    updateAccount(updatedAccount, newToken: newToken)
+                    accountToEdit = nil
+                },
+                onCancel: {
+                    accountToEdit = nil
+                }
+            )
         }
         .onAppear {
             loadAccounts()
@@ -147,7 +142,6 @@ struct SettingsView: View {
 
     private func editAccount(_ account: Account) {
         accountToEdit = account
-        showingEditAccount = true
     }
 
     private func updateAccount(_ account: Account, newToken: String?) {
