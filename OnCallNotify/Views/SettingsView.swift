@@ -10,6 +10,8 @@ import SwiftUI
 struct SettingsView: View {
     @State private var accounts: [Account] = []
     @State private var showingAddAccount = false
+    @State private var showingEditAccount = false
+    @State private var accountToEdit: Account?
     @State private var showError: Bool = false
     @State private var errorMessage: String = ""
 
@@ -104,6 +106,22 @@ struct SettingsView: View {
                 showingAddAccount = false
             })
         }
+        .sheet(isPresented: $showingEditAccount) {
+            if let account = accountToEdit {
+                EditAccountView(
+                    account: account,
+                    onSave: { updatedAccount, newToken in
+                        updateAccount(updatedAccount, newToken: newToken)
+                        showingEditAccount = false
+                        accountToEdit = nil
+                    },
+                    onCancel: {
+                        showingEditAccount = false
+                        accountToEdit = nil
+                    }
+                )
+            }
+        }
         .onAppear {
             loadAccounts()
         }
@@ -128,8 +146,26 @@ struct SettingsView: View {
     }
 
     private func editAccount(_ account: Account) {
-        // For now, just allow toggling. Full edit will be added later if needed
-        toggleAccount(account)
+        accountToEdit = account
+        showingEditAccount = true
+    }
+
+    private func updateAccount(_ account: Account, newToken: String?) {
+        // Update account metadata
+        var success = KeychainHelper.shared.updateAccount(account)
+
+        // If a new token was provided, update it
+        if success, let token = newToken, !token.isEmpty {
+            success = KeychainHelper.shared.updateAPIToken(for: account.id, token: token)
+        }
+
+        if success {
+            loadAccounts()
+            OnCallService.shared.reloadAccounts()
+        } else {
+            showError = true
+            errorMessage = "Failed to update account"
+        }
     }
 
     private func toggleAccount(_ account: Account) {
@@ -220,6 +256,14 @@ struct AccountRowView: View {
             }
             .buttonStyle(.plain)
             .help(account.isEnabled ? "Disable Account" : "Enable Account")
+
+            // Edit button
+            Button(action: onEdit) {
+                Image(systemName: "pencil")
+                    .foregroundColor(.blue)
+            }
+            .buttonStyle(.plain)
+            .help("Edit Account")
 
             // Delete button
             Button(action: onDelete) {
@@ -388,7 +432,142 @@ struct AddAccountView: View {
             return (false, "API token appears to be invalid (too long)")
         }
 
-        let allowedCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
+        let allowedCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_+"))
+        guard trimmed.rangeOfCharacter(from: allowedCharacters.inverted) == nil else {
+            return (false, "API token contains invalid characters")
+        }
+
+        return (true, nil)
+    }
+}
+
+// MARK: - Edit Account View
+
+struct EditAccountView: View {
+    let account: Account
+    let onSave: (Account, String?) -> Void
+    let onCancel: () -> Void
+
+    @State private var accountName: String = ""
+    @State private var apiToken: String = ""
+    @State private var showError: Bool = false
+    @State private var errorMessage: String = ""
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("Edit Account")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                Spacer()
+            }
+            .padding()
+
+            Divider()
+
+            // Form
+            Form {
+                Section {
+                    TextField("Account Name", text: $accountName)
+                        .textFieldStyle(.roundedBorder)
+
+                    HStack {
+                        Text("Service Type:")
+                        Spacer()
+                        Text(account.serviceType.displayName)
+                            .foregroundColor(.secondary)
+                    }
+
+                    SecureField("New API Token (leave blank to keep current)", text: $apiToken)
+                        .textFieldStyle(.roundedBorder)
+
+                    Text("Leave the API token field empty to keep the existing token.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } header: {
+                    Text("Account Details")
+                }
+            }
+            .formStyle(.grouped)
+            .padding()
+
+            if showError {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                    Text(errorMessage)
+                        .font(.caption)
+                    Spacer()
+                }
+                .padding()
+                .background(Color.orange.opacity(0.1))
+            }
+
+            Divider()
+
+            // Footer buttons
+            HStack {
+                Button("Cancel", action: onCancel)
+                    .keyboardShortcut(.cancelAction)
+
+                Spacer()
+
+                Button("Save Changes") {
+                    saveChanges()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(accountName.isEmpty)
+            }
+            .padding()
+        }
+        .frame(width: 500, height: 350)
+        .onAppear {
+            accountName = account.name
+        }
+    }
+
+    private func saveChanges() {
+        let trimmedName = accountName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedToken = apiToken.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmedName.isEmpty else {
+            showError = true
+            errorMessage = "Please enter an account name"
+            return
+        }
+
+        // Only validate token if one was provided
+        if !trimmedToken.isEmpty {
+            let validation = validateAPIToken(trimmedToken)
+            guard validation.isValid else {
+                showError = true
+                errorMessage = validation.message ?? "Invalid API token"
+                return
+            }
+        }
+
+        // Create updated account
+        var updatedAccount = account
+        updatedAccount.name = trimmedName
+
+        // Pass nil for token if not changed, otherwise pass the new token
+        onSave(updatedAccount, trimmedToken.isEmpty ? nil : trimmedToken)
+    }
+
+    private func validateAPIToken(_ token: String) -> (isValid: Bool, message: String?) {
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard trimmed.count >= 20 else {
+            return (false, "API token must be at least 20 characters")
+        }
+
+        guard trimmed.count <= 100 else {
+            return (false, "API token appears to be invalid (too long)")
+        }
+
+        let allowedCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_+"))
         guard trimmed.rangeOfCharacter(from: allowedCharacters.inverted) == nil else {
             return (false, "API token contains invalid characters")
         }
