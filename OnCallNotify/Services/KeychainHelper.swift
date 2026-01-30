@@ -137,6 +137,12 @@ class KeychainHelper {
         return status == errSecSuccess || status == errSecItemNotFound
     }
 
+    /// Update API token for a specific account
+    func updateAPIToken(for accountId: String, token: String) -> Bool {
+        // saveAPIToken already handles delete-then-add
+        return saveAPIToken(token, forAccountId: accountId)
+    }
+
     // MARK: - Legacy Support (for backward compatibility)
 
     /// Save API token using legacy key (for backward compatibility)
