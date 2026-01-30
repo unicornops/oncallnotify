@@ -37,11 +37,13 @@ class OnCallService: ObservableObject {
     func initializeAccountServices() {
         let accounts = KeychainHelper.shared.getAccounts()
 
-        // Remove services for accounts that no longer exist
-        let accountIds = Set(accounts.map { $0.id })
-        accountServices = accountServices.filter { accountIds.contains($0.key) }
+        // Build set of enabled account IDs
+        let enabledAccountIds = Set(accounts.filter { $0.isEnabled }.map { $0.id })
 
-        // Create or update services for each account
+        // Remove services for accounts that no longer exist OR are disabled
+        accountServices = accountServices.filter { enabledAccountIds.contains($0.key) }
+
+        // Create or update services for each enabled account
         for account in accounts where account.isEnabled {
             if accountServices[account.id] == nil {
                 accountServices[account.id] = AccountService(account: account)
