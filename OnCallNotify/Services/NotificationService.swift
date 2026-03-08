@@ -54,7 +54,7 @@ class NotificationService: NSObject {
         guard notificationPermissionGranted else { return }
 
         let content = UNMutableNotificationContent()
-        content.title = "New PagerDuty Incident"
+        content.title = "New Incident"
         content.body = incident.title
         content.sound = .default
 

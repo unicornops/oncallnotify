@@ -21,6 +21,7 @@ plans to add support for additional on-call and incident management platforms in
 - 👤 **On-Call Status**: Visual indicator showing if you're currently on-call
 - 📅 **Next Shift Information**: See when your next on-call shift starts
 - 🔐 **Multi-Account Support**: Monitor multiple accounts across services simultaneously
+- ▶️ **Full Demo Mode**: Explore the app without PagerDuty credentials or a paid account
 - 🔒 **Secure Storage**: API tokens stored securely in macOS Keychain
 - 🔄 **Auto-refresh**: Automatically updates every 60 seconds
 - 🎨 **Native macOS UI**: Built with SwiftUI for a native look and feel
@@ -31,6 +32,7 @@ plans to add support for additional on-call and incident management platforms in
 
 ### Currently Supported
 
+- ✅ **Demo Mode** - Full local walkthrough for App Store review and evaluation
 - ✅ **PagerDuty** - Full support for incidents and on-call schedules
 
 ### Coming Soon
@@ -81,7 +83,7 @@ Manage your accounts with:
 
 - macOS 13.0 (Ventura) or later
 - Xcode 15.0 or later (for building)
-- Account with a supported service (currently PagerDuty)
+- Optional: PagerDuty account and API token for live data
 
 ## Installation
 
@@ -127,15 +129,40 @@ Pre-built releases will be available in the GitHub Releases section.
 1. Launch OnCall Notify (it will appear in your menu bar)
 2. Click the menu bar icon
 3. Click the gear icon (⚙️) to open Settings
-4. Click "Add Account" to add your first account
+4. Use the seeded **App Store Demo** account for an immediate walkthrough, or click "Add Account"
 5. Enter a friendly name for the account (e.g., "Work PagerDuty")
-6. Select the service type (currently only PagerDuty is supported)
-7. Paste your API token
+6. Select the service type (`Demo Mode` or `PagerDuty`)
+7. If you selected PagerDuty, paste your API token
 8. Click "Add Account"
 9. Test the connection using the network icon
 10. Add additional accounts as needed by repeating steps 4-9
 
 The app will now automatically fetch and display your alerts and on-call status from all enabled accounts.
+
+## Demo Mode
+
+On first launch, OnCall Notify creates a default **App Store Demo** account so the app is usable without
+external credentials. Demo Mode is intended for:
+
+- App Store review
+- Product evaluation before connecting PagerDuty
+- UI and notification testing without touching a live incident system
+
+Demo Mode includes:
+
+- Local sample incidents with triggered and acknowledged states
+- On-call and next-shift examples
+- Working acknowledge actions
+- Scenario switching from both the menu bar popover and Settings
+- No network sign-in requirement
+
+### App Review Flow
+
+1. Launch the app and click the menu bar icon.
+2. Verify the seeded **App Store Demo** account loads automatically.
+3. Use the **Demo Mode** section in the popover to switch scenarios.
+4. Review active alerts, on-call state, next shift, and acknowledge actions.
+5. Open **Settings** to confirm demo mode is available without credentials.
 
 ### Managing Multiple Accounts
 

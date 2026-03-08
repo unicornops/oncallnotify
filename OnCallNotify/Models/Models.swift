@@ -162,6 +162,7 @@ struct UserDetail: Codable {
 // MARK: - Multi-Account Models
 
 enum ServiceType: String, Codable, CaseIterable {
+    case demo = "Demo Mode"
     case pagerDuty = "PagerDuty"
     // Future services:
     // case atlassianCompass = "Atlassian Compass"
@@ -172,6 +173,55 @@ enum ServiceType: String, Codable, CaseIterable {
 
     var displayName: String {
         rawValue
+    }
+
+    var requiresAPIToken: Bool {
+        self != .demo
+    }
+}
+
+enum DemoScenario: String, Codable, CaseIterable, Identifiable {
+    case reviewOverview
+    case activeIncident
+    case shiftHandoff
+    case quietShift
+
+    var id: String {
+        rawValue
+    }
+
+    var displayName: String {
+        switch self {
+        case .reviewOverview:
+            "Review Overview"
+        case .activeIncident:
+            "Active Incident"
+        case .shiftHandoff:
+            "Shift Handoff"
+        case .quietShift:
+            "Quiet Shift"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .reviewOverview:
+            "Shows the main reviewer path with mixed incidents and active on-call status."
+        case .activeIncident:
+            "Highlights multiple triggered incidents and in-app acknowledge actions."
+        case .shiftHandoff:
+            "Shows acknowledged incidents, upcoming coverage, and reduced alert noise."
+        case .quietShift:
+            "Shows the calm-state experience with no current incidents."
+        }
+    }
+}
+
+struct DemoConfiguration: Codable {
+    var selectedScenario: DemoScenario
+
+    init(selectedScenario: DemoScenario = .reviewOverview) {
+        self.selectedScenario = selectedScenario
     }
 }
 
@@ -190,6 +240,14 @@ struct Account: Codable, Identifiable, Equatable {
 
     static func == (lhs: Account, rhs: Account) -> Bool {
         lhs.id == rhs.id
+    }
+
+    var requiresAPIToken: Bool {
+        serviceType.requiresAPIToken
+    }
+
+    var isDemoAccount: Bool {
+        serviceType == .demo
     }
 }
 
@@ -222,6 +280,7 @@ struct AccountAlertSummary {
     var acknowledgedCount: Int
     var unacknowledgedCount: Int
     var isOnCall: Bool
+    var nextOnCallShift: Date?
     var incidents: [Incident]
 }
 
@@ -258,7 +317,7 @@ enum OnCallError: Error, LocalizedError {
         case .invalidURL:
             "Configuration error. Please check your settings."
         case .noAPIToken:
-            "No API token found. Please configure in Settings."
+            "No account credentials found. Add a PagerDuty account or enable Demo Mode in Settings."
         case .invalidResponse:
             "Unable to process server response. Please try again."
         case .unauthorized:
@@ -272,7 +331,7 @@ enum OnCallError: Error, LocalizedError {
                 "Unable to complete request. Please try again."
             }
         case let .apiError(_, userMessage):
-            userMessage ?? "Unable to connect to PagerDuty. Please check your token and connection."
+            userMessage ?? "Unable to connect to the selected service. Please check your settings."
         case let .networkError(_, userMessage):
             userMessage ?? "Network connection error. Please check your internet connection."
         case let .acknowledgmentFailed(message):

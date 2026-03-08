@@ -140,9 +140,15 @@ class StatusBarController: ObservableObject {
         }
 
         button.attributedTitle = attributedTitle
+        button.toolTip = makeTooltip(for: summary)
+    }
 
-        // Set tooltip
+    private func makeTooltip(for summary: AlertSummary) -> String {
         var tooltipParts: [String] = []
+
+        if OnCallService.shared.hasEnabledDemoAccount() {
+            tooltipParts.append("Demo Mode Enabled")
+        }
 
         if summary.isOnCall {
             tooltipParts.append("Currently On-Call")
@@ -162,7 +168,7 @@ class StatusBarController: ObservableObject {
             tooltipParts.append("No active alerts")
         }
 
-        button.toolTip = tooltipParts.joined(separator: "\n")
+        return tooltipParts.joined(separator: "\n")
     }
 
     // MARK: - Popover Actions

@@ -10,28 +10,35 @@ import SwiftUI
 struct MenuView: View {
     @ObservedObject var service = OnCallService.shared
 
+    private var demoAccount: Account? {
+        service.primaryDemoAccount()
+    }
+
+    private var liveAccount: Account? {
+        service.primaryLiveAccount()
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             headerView
 
             Divider()
 
-            // Main content
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    // On-call status section
+                    if let demoAccount {
+                        demoModeSection(account: demoAccount)
+                        Divider()
+                    }
+
                     onCallStatusSection
 
                     Divider()
 
-                    // Alert summary section
                     alertSummarySection
 
                     if !service.alertSummary.incidents.isEmpty {
                         Divider()
-
-                        // Incidents list
                         incidentsSection
                     }
                 }
@@ -40,17 +47,16 @@ struct MenuView: View {
 
             Divider()
 
-            // Footer with actions
             footerView
         }
-        .frame(width: 400, height: 500)
+        .frame(width: 420, height: 540)
     }
 
     // MARK: - Header
 
     private var headerView: some View {
         HStack {
-            Image(systemName: "bell.fill")
+            Image(systemName: service.alertSummary.isOnCall ? "bell.fill" : "bell")
                 .font(.title2)
                 .foregroundColor(service.alertSummary.isOnCall ? .blue : .secondary)
 
@@ -71,7 +77,12 @@ struct MenuView: View {
                     Text(error.localizedDescription)
                         .font(.caption)
                         .foregroundColor(.red)
-                        .lineLimit(1)
+                        .lineLimit(2)
+                } else if let demoAccount,
+                          let configuration = service.demoConfiguration(for: demoAccount.id) {
+                    Text("Demo Mode • \(configuration.selectedScenario.displayName)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 } else {
                     Text("Updated just now")
                         .font(.caption)
@@ -81,17 +92,76 @@ struct MenuView: View {
 
             Spacer()
 
-            Button(
-                action: {
-                    service.refreshData()
-                },
-                label: {
-                    Image(systemName: "arrow.clockwise")
-                })
-                .buttonStyle(.plain)
-                .help("Refresh")
+            Button {
+                service.refreshData(force: true)
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(.plain)
+            .help("Refresh")
         }
         .padding()
+    }
+
+    // MARK: - Demo Mode
+
+    private func demoModeSection(account: Account) -> some View {
+        let configuration = service.demoConfiguration(for: account.id) ?? DemoConfiguration()
+
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Demo Mode", systemImage: "play.square.fill")
+                    .font(.headline)
+                    .foregroundColor(.blue)
+
+                Spacer()
+
+                Text(account.name)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Text(
+                "This demo runs without PagerDuty credentials and exercises the same " +
+                    "menu, refresh, on-call, and acknowledge flows used by live accounts."
+            )
+            .font(.caption)
+            .foregroundColor(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+            Picker("Scenario", selection: demoScenarioBinding(for: account.id)) {
+                ForEach(DemoScenario.allCases) { scenario in
+                    Text(scenario.displayName).tag(scenario)
+                }
+            }
+            .pickerStyle(.menu)
+
+            Text(configuration.selectedScenario.description)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack {
+                Button {
+                    service.resetDemoScenario(for: account.id)
+                } label: {
+                    Label("Reset", systemImage: "arrow.counterclockwise")
+                }
+                .buttonStyle(.bordered)
+
+                Button {
+                    service.advanceDemoScenario(for: account.id)
+                } label: {
+                    Label("Next Scenario", systemImage: "arrow.right.circle")
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.blue.opacity(0.07))
+        )
     }
 
     // MARK: - On-Call Status
@@ -141,14 +211,12 @@ struct MenuView: View {
 
                 Spacer()
 
-                // Acknowledge All button (only show when there are unacknowledged alerts)
                 if service.alertSummary.unacknowledgedCount > 0 {
                     AcknowledgeAllButton()
                 }
             }
 
             HStack(spacing: 20) {
-                // Total alerts
                 VStack(alignment: .leading, spacing: 4) {
                     Text("\(service.alertSummary.totalAlerts)")
                         .font(.system(.title, design: .rounded))
@@ -161,7 +229,6 @@ struct MenuView: View {
                 Divider()
                     .frame(height: 40)
 
-                // Unacknowledged
                 VStack(alignment: .leading, spacing: 4) {
                     Text("\(service.alertSummary.unacknowledgedCount)")
                         .font(.system(.title2, design: .rounded))
@@ -175,7 +242,6 @@ struct MenuView: View {
                 Divider()
                     .frame(height: 40)
 
-                // Acknowledged
                 VStack(alignment: .leading, spacing: 4) {
                     Text("\(service.alertSummary.acknowledgedCount)")
                         .font(.system(.title2, design: .rounded))
@@ -213,10 +279,12 @@ struct MenuView: View {
 
     private var footerView: some View {
         HStack {
-            Button(action: openPagerDutyWeb) {
-                Label("Open PagerDuty", systemImage: "safari")
+            if liveAccount != nil || demoAccount != nil {
+                Button(action: openDashboard) {
+                    Label(footerButtonTitle, systemImage: "safari")
+                }
+                .buttonStyle(.link)
             }
-            .buttonStyle(.link)
 
             Spacer()
 
@@ -245,10 +313,28 @@ struct MenuView: View {
 
     // MARK: - Helper Methods
 
+    private func demoScenarioBinding(for accountId: String) -> Binding<DemoScenario> {
+        Binding(
+            get: {
+                service.demoConfiguration(for: accountId)?.selectedScenario ?? .reviewOverview
+            },
+            set: { scenario in
+                service.setDemoScenario(scenario, for: accountId)
+            }
+        )
+    }
+
+    private var footerButtonTitle: String {
+        if liveAccount != nil {
+            return "Open PagerDuty"
+        }
+
+        return "Demo Guide"
+    }
+
     private func formatNextShift(_ date: Date) -> String {
         let now = Date()
         let calendar = Calendar.current
-
         let components = calendar.dateComponents([.day, .hour, .minute], from: now, to: date)
 
         if let days = components.day, days > 0 {
@@ -265,16 +351,22 @@ struct MenuView: View {
         }
     }
 
-    private func openPagerDutyWeb() {
-        if let url = URL(string: "https://app.pagerduty.com/incidents") {
-            NSWorkspace.shared.open(url)
+    private func openDashboard() {
+        let urlString: String
+        if liveAccount != nil {
+            urlString = "https://app.pagerduty.com/incidents"
+        } else {
+            urlString = "https://github.com/unicornops/oncall-notify#demo-mode"
         }
+
+        guard let url = URL(string: urlString) else {
+            return
+        }
+
+        NSWorkspace.shared.open(url)
     }
 
-    // Note: Currently supports PagerDuty, future versions will support additional services
-
     private func openSettings() {
-        // For macOS 13.0+ use modern API, fallback to legacy for macOS 12 and earlier
         if #available(macOS 13.0, *) {
             NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         } else {
@@ -296,34 +388,32 @@ struct AcknowledgeAllButton: View {
     @State private var acknowledgmentError: String?
 
     var body: some View {
-        Button(
-            action: {
-                acknowledgeAll()
-            },
-            label: {
-                if isAcknowledging {
-                    HStack(spacing: 4) {
-                        ProgressView()
-                            .scaleEffect(0.6)
-                            .frame(width: 12, height: 12)
-                        Text("Acknowledging...")
-                            .font(.caption)
-                    }
-                } else {
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.caption)
-                        Text("Acknowledge All")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                    }
+        Button {
+            acknowledgeAll()
+        } label: {
+            if isAcknowledging {
+                HStack(spacing: 4) {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                        .frame(width: 12, height: 12)
+                    Text("Acknowledging...")
+                        .font(.caption)
                 }
-            })
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
-            .tint(.orange)
-            .disabled(isAcknowledging)
-            .help("Acknowledge all unacknowledged incidents")
+            } else {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.caption)
+                    Text("Acknowledge All")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                }
+            }
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.small)
+        .tint(.orange)
+        .disabled(isAcknowledging)
+        .help("Acknowledge all unacknowledged incidents")
     }
 
     private func acknowledgeAll() {
@@ -333,7 +423,6 @@ struct AcknowledgeAllButton: View {
         Task {
             do {
                 try await service.acknowledgeAllIncidents()
-                // Success - the service will refresh and update the UI
             } catch {
                 acknowledgmentError = error.localizedDescription
             }
@@ -352,20 +441,17 @@ struct IncidentRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .top, spacing: 8) {
-                // Status indicator
                 Circle()
                     .fill(statusColor)
                     .frame(width: 8, height: 8)
                     .padding(.top, 4)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    // Title
                     Text(incident.title)
                         .font(.subheadline)
                         .fontWeight(.medium)
                         .lineLimit(2)
 
-                    // Service and Account
                     HStack(spacing: 4) {
                         if let service = incident.service {
                             Text(service.summary)
@@ -373,7 +459,6 @@ struct IncidentRowView: View {
                                 .foregroundColor(.secondary)
                         }
 
-                        // Account badge (if available)
                         if let accountId = incident.accountId,
                            let account = getAccount(for: accountId) {
                             Text("•")
@@ -381,11 +466,10 @@ struct IncidentRowView: View {
                                 .foregroundColor(.secondary)
                             Text(account.name)
                                 .font(.caption)
-                                .foregroundColor(.blue)
+                                .foregroundColor(account.isDemoAccount ? .blue : .primary)
                         }
                     }
 
-                    // Time
                     HStack(spacing: 4) {
                         Image(systemName: "clock")
                             .font(.caption2)
@@ -394,7 +478,6 @@ struct IncidentRowView: View {
                     }
                     .foregroundColor(.secondary)
 
-                    // Error message
                     if let error = acknowledgmentError {
                         Text(error)
                             .font(.caption2)
@@ -406,40 +489,34 @@ struct IncidentRowView: View {
                 Spacer()
 
                 HStack(spacing: 8) {
-                    // Acknowledge button (only for triggered incidents)
                     if incident.status == .triggered {
-                        Button(
-                            action: {
-                                acknowledgeIncident()
-                            },
-                            label: {
-                                if isAcknowledging {
-                                    ProgressView()
-                                        .scaleEffect(0.7)
-                                        .frame(width: 16, height: 16)
-                                } else {
-                                    Image(systemName: "checkmark.circle")
-                                        .font(.caption)
-                                        .foregroundColor(.orange)
-                                }
-                            })
-                            .buttonStyle(.plain)
-                            .disabled(isAcknowledging)
-                            .help("Acknowledge incident")
+                        Button {
+                            acknowledgeIncident()
+                        } label: {
+                            if isAcknowledging {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                                    .frame(width: 16, height: 16)
+                            } else {
+                                Image(systemName: "checkmark.circle")
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isAcknowledging)
+                        .help("Acknowledge incident")
                     }
 
-                    // Open button
                     if let urlString = incident.htmlUrl,
                        let url = URL(string: urlString) {
-                        Button(
-                            action: {
-                                NSWorkspace.shared.open(url)
-                            },
-                            label: {
-                                Image(systemName: "arrow.up.right.square")
-                                    .font(.caption)
-                            })
-                            .buttonStyle(.plain)
+                        Button {
+                            NSWorkspace.shared.open(url)
+                        } label: {
+                            Image(systemName: "arrow.up.right.square")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -464,7 +541,6 @@ struct IncidentRowView: View {
     }
 
     private func acknowledgeIncident() {
-        // Make sure we have an account ID
         guard let accountId = incident.accountId else {
             acknowledgmentError = "Unable to identify account for this incident"
             return
@@ -479,7 +555,6 @@ struct IncidentRowView: View {
                     incidentId: incident.id,
                     accountId: accountId
                 )
-                // Success - the service will refresh and update the UI
             } catch {
                 acknowledgmentError = error.localizedDescription
             }

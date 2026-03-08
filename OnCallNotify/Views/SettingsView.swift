@@ -11,75 +11,22 @@ struct SettingsView: View {
     @State private var accounts: [Account] = []
     @State private var showingAddAccount = false
     @State private var accountToEdit: Account?
-    @State private var showError: Bool = false
-    @State private var errorMessage: String = ""
+    @State private var showError = false
+    @State private var errorMessage = ""
+
+    private var demoAccounts: [Account] {
+        accounts.filter { $0.isDemoAccount }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             Form {
-                Section {
-                    VStack(alignment: .leading, spacing: 12) {
-                        if accounts.isEmpty {
-                            HStack {
-                                Image(systemName: "info.circle")
-                                    .foregroundColor(.blue)
-                                Text("No accounts configured. Add an account to get started.")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding(.vertical, 8)
-                        } else {
-                            ForEach(accounts) { account in
-                                AccountRowView(
-                                    account: account,
-                                    onEdit: { editAccount(account) },
-                                    onDelete: { deleteAccount(account) },
-                                    onToggle: { toggleAccount(account) }
-                                )
-                            }
-                        }
-
-                        Button {
-                            showingAddAccount = true
-                        } label: {
-                            Label("Add Account", systemImage: "plus.circle")
-                        }
-                    }
-                    .padding(.vertical, 8)
-                } header: {
-                    Text("Accounts")
-                }
-
-                Section {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Auto-refresh:")
-                            Spacer()
-                            Text("Every 60 seconds")
-                                .foregroundColor(.secondary)
-                        }
-
-                        HStack {
-                            Text("Data Storage:")
-                            Spacer()
-                            Text("Keychain (Secure)")
-                                .foregroundColor(.secondary)
-                        }
-
-                        HStack {
-                            Text("Active Accounts:")
-                            Spacer()
-                            Text("\(accounts.filter { $0.isEnabled }.count) of \(accounts.count)")
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .padding(.vertical, 8)
-                } header: {
-                    Text("Information")
-                }
+                demoModeSection
+                accountsSection
+                informationSection
             }
             .formStyle(.grouped)
-            .frame(minWidth: 600, minHeight: 400)
+            .frame(minWidth: 640, minHeight: 440)
 
             if showError {
                 HStack {
@@ -98,12 +45,15 @@ struct SettingsView: View {
             }
         }
         .sheet(isPresented: $showingAddAccount) {
-            AddAccountView(onSave: { account, token in
-                addAccount(account, token: token)
-                showingAddAccount = false
-            }, onCancel: {
-                showingAddAccount = false
-            })
+            AddAccountView(
+                onSave: { account, token in
+                    addAccount(account, token: token)
+                    showingAddAccount = false
+                },
+                onCancel: {
+                    showingAddAccount = false
+                }
+            )
         }
         .sheet(item: $accountToEdit) { account in
             EditAccountView(
@@ -119,6 +69,111 @@ struct SettingsView: View {
         }
         .onAppear {
             loadAccounts()
+        }
+    }
+
+    private var demoModeSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Review-Friendly Demo Mode", systemImage: "play.square.fill")
+                    .font(.headline)
+
+                Text(
+                    "Demo Mode runs entirely offline with local sample incidents, on-call state, " +
+                        "and acknowledge actions. It is intended for App Store review " +
+                        "and for anyone evaluating the app without a paid PagerDuty account."
+                )
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+                if demoAccounts.isEmpty {
+                    Button {
+                        addDemoAccount()
+                    } label: {
+                        Label("Add Demo Account", systemImage: "plus.circle.fill")
+                    }
+                } else {
+                    ForEach(demoAccounts) { account in
+                        DemoAccountControlsView(account: account)
+                    }
+                }
+            }
+            .padding(.vertical, 8)
+        } header: {
+            Text("Demo Mode")
+        }
+    }
+
+    private var accountsSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 12) {
+                if accounts.isEmpty {
+                    HStack {
+                        Image(systemName: "info.circle")
+                            .foregroundColor(.blue)
+                        Text("No accounts configured. Add a PagerDuty account or create a Demo account to get started.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 8)
+                } else {
+                    ForEach(accounts) { account in
+                        AccountRowView(
+                            account: account,
+                            onEdit: { editAccount(account) },
+                            onDelete: { deleteAccount(account) },
+                            onToggle: { toggleAccount(account) }
+                        )
+                    }
+                }
+
+                Button {
+                    showingAddAccount = true
+                } label: {
+                    Label("Add Account", systemImage: "plus.circle")
+                }
+            }
+            .padding(.vertical, 8)
+        } header: {
+            Text("Accounts")
+        }
+    }
+
+    private var informationSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Auto-refresh:")
+                    Spacer()
+                    Text("Every 60 seconds")
+                        .foregroundColor(.secondary)
+                }
+
+                HStack {
+                    Text("Data Storage:")
+                    Spacer()
+                    Text("Keychain + UserDefaults")
+                        .foregroundColor(.secondary)
+                }
+
+                HStack {
+                    Text("Active Accounts:")
+                    Spacer()
+                    Text("\(accounts.filter { $0.isEnabled }.count) of \(accounts.count)")
+                        .foregroundColor(.secondary)
+                }
+
+                HStack {
+                    Text("App Review Access:")
+                    Spacer()
+                    Text(demoAccounts.isEmpty ? "Add Demo Mode" : "Ready")
+                        .foregroundColor(demoAccounts.isEmpty ? .orange : .green)
+                }
+            }
+            .padding(.vertical, 8)
+        } header: {
+            Text("Information")
         }
     }
 
@@ -140,17 +195,23 @@ struct SettingsView: View {
         }
     }
 
+    private func addDemoAccount() {
+        let demoAccount = Account(name: "Demo Workspace", serviceType: .demo, isEnabled: true)
+        addAccount(demoAccount, token: "")
+    }
+
     private func editAccount(_ account: Account) {
         accountToEdit = account
     }
 
     private func updateAccount(_ account: Account, newToken: String?) {
-        // Update account metadata
         var success = KeychainHelper.shared.updateAccount(account)
 
-        // If a new token was provided, update it
-        if success, let token = newToken, !token.isEmpty {
-            success = KeychainHelper.shared.updateAPIToken(for: account.id, token: token)
+        if success,
+           account.requiresAPIToken,
+           let newToken,
+           !newToken.isEmpty {
+            success = KeychainHelper.shared.updateAPIToken(for: account.id, token: newToken)
         }
 
         if success {
@@ -190,6 +251,75 @@ struct SettingsView: View {
     }
 }
 
+// MARK: - Demo Controls
+
+struct DemoAccountControlsView: View {
+    let account: Account
+    @ObservedObject private var service = OnCallService.shared
+
+    private var scenarioBinding: Binding<DemoScenario> {
+        Binding(
+            get: {
+                service.demoConfiguration(for: account.id)?.selectedScenario ?? .reviewOverview
+            },
+            set: { scenario in
+                service.setDemoScenario(scenario, for: account.id)
+            }
+        )
+    }
+
+    private var selectedScenario: DemoScenario {
+        service.demoConfiguration(for: account.id)?.selectedScenario ?? .reviewOverview
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(account.name)
+                        .font(.headline)
+                    Text("No sign-in required. All demo actions stay local on this Mac.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Button {
+                    service.resetDemoScenario(for: account.id)
+                } label: {
+                    Label("Reset", systemImage: "arrow.counterclockwise")
+                }
+                .buttonStyle(.bordered)
+
+                Button {
+                    service.advanceDemoScenario(for: account.id)
+                } label: {
+                    Label("Next Scenario", systemImage: "arrow.right.circle")
+                }
+                .buttonStyle(.borderedProminent)
+            }
+
+            Picker("Demo Scenario", selection: scenarioBinding) {
+                ForEach(DemoScenario.allCases) { scenario in
+                    Text(scenario.displayName).tag(scenario)
+                }
+            }
+            .pickerStyle(.menu)
+
+            Text(selectedScenario.description)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.blue.opacity(0.06))
+        )
+    }
+}
+
 // MARK: - Account Row View
 
 struct AccountRowView: View {
@@ -198,12 +328,11 @@ struct AccountRowView: View {
     let onDelete: () -> Void
     let onToggle: () -> Void
 
-    @State private var isTestingConnection: Bool = false
+    @State private var isTestingConnection = false
     @State private var connectionTestResult: Bool?
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            // Service icon
             Image(systemName: serviceIcon)
                 .font(.title2)
                 .foregroundColor(account.isEnabled ? .blue : .gray)
@@ -218,7 +347,11 @@ struct AccountRowView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
 
-                if !account.isEnabled {
+                if account.isDemoAccount {
+                    Text("Offline sample data for App Review and evaluation")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else if !account.isEnabled {
                     Text("Disabled")
                         .font(.caption)
                         .foregroundColor(.orange)
@@ -227,7 +360,6 @@ struct AccountRowView: View {
 
             Spacer()
 
-            // Test Connection button
             Button(action: testConnection) {
                 if isTestingConnection {
                     ProgressView()
@@ -236,14 +368,13 @@ struct AccountRowView: View {
                     Image(systemName: result ? "checkmark.circle.fill" : "xmark.circle.fill")
                         .foregroundColor(result ? .green : .red)
                 } else {
-                    Image(systemName: "network")
+                    Image(systemName: account.isDemoAccount ? "play.circle" : "network")
                 }
             }
             .buttonStyle(.plain)
             .disabled(isTestingConnection || !account.isEnabled)
-            .help("Test Connection")
+            .help(account.isDemoAccount ? "Validate Demo Mode" : "Test Connection")
 
-            // Toggle enabled
             Button(action: onToggle) {
                 Image(systemName: account.isEnabled ? "checkmark.circle.fill" : "circle")
                     .foregroundColor(account.isEnabled ? .green : .gray)
@@ -251,7 +382,6 @@ struct AccountRowView: View {
             .buttonStyle(.plain)
             .help(account.isEnabled ? "Disable Account" : "Enable Account")
 
-            // Edit button
             Button(action: onEdit) {
                 Image(systemName: "pencil")
                     .foregroundColor(.blue)
@@ -259,7 +389,6 @@ struct AccountRowView: View {
             .buttonStyle(.plain)
             .help("Edit Account")
 
-            // Delete button
             Button(action: onDelete) {
                 Image(systemName: "trash")
                     .foregroundColor(.red)
@@ -277,6 +406,8 @@ struct AccountRowView: View {
 
     private var serviceIcon: String {
         switch account.serviceType {
+        case .demo:
+            "play.square.fill"
         case .pagerDuty:
             "bell.fill"
         }
@@ -303,15 +434,14 @@ struct AddAccountView: View {
     let onSave: (Account, String) -> Void
     let onCancel: () -> Void
 
-    @State private var accountName: String = ""
-    @State private var serviceType: ServiceType = .pagerDuty
-    @State private var apiToken: String = ""
-    @State private var showError: Bool = false
-    @State private var errorMessage: String = ""
+    @State private var accountName = ""
+    @State private var serviceType: ServiceType = .demo
+    @State private var apiToken = ""
+    @State private var showError = false
+    @State private var errorMessage = ""
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Text("Add New Account")
                     .font(.title2)
@@ -322,7 +452,6 @@ struct AddAccountView: View {
 
             Divider()
 
-            // Form
             Form {
                 Section {
                     TextField("Account Name", text: $accountName)
@@ -334,8 +463,18 @@ struct AddAccountView: View {
                         }
                     }
 
-                    SecureField("API Token", text: $apiToken)
-                        .textFieldStyle(.roundedBorder)
+                    if serviceType.requiresAPIToken {
+                        SecureField("API Token", text: $apiToken)
+                            .textFieldStyle(.roundedBorder)
+                    } else {
+                        HStack(spacing: 8) {
+                            Image(systemName: "checkmark.shield")
+                                .foregroundColor(.green)
+                            Text("Demo Mode does not require credentials.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                    }
 
                     Text(serviceInstructions)
                         .font(.caption)
@@ -362,7 +501,6 @@ struct AddAccountView: View {
 
             Divider()
 
-            // Footer buttons
             HStack {
                 Button("Cancel", action: onCancel)
                     .keyboardShortcut(.cancelAction)
@@ -373,22 +511,28 @@ struct AddAccountView: View {
                     saveAccount()
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(accountName.isEmpty || apiToken.isEmpty)
+                .disabled(accountName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || addButtonDisabled)
             }
             .padding()
         }
-        .frame(width: 500, height: 400)
+        .frame(width: 520, height: 400)
+    }
+
+    private var addButtonDisabled: Bool {
+        serviceType.requiresAPIToken && apiToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var serviceInstructions: String {
         switch serviceType {
+        case .demo:
+            "Demo Mode creates local sample incidents and on-call data " +
+                "so the full app can be explored without external sign-in."
         case .pagerDuty:
             "Create an API token in your PagerDuty account under User Settings → API Access Keys."
         }
     }
 
     private func saveAccount() {
-        // Validate inputs
         let trimmedName = accountName.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedToken = apiToken.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -398,142 +542,7 @@ struct AddAccountView: View {
             return
         }
 
-        let validation = validateAPIToken(trimmedToken)
-        guard validation.isValid else {
-            showError = true
-            errorMessage = validation.message ?? "Invalid API token"
-            return
-        }
-
-        // Create account
-        let account = Account(
-            name: trimmedName,
-            serviceType: serviceType,
-            isEnabled: true
-        )
-
-        onSave(account, trimmedToken)
-    }
-
-    private func validateAPIToken(_ token: String) -> (isValid: Bool, message: String?) {
-        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard trimmed.count >= 20 else {
-            return (false, "API token must be at least 20 characters")
-        }
-
-        guard trimmed.count <= 100 else {
-            return (false, "API token appears to be invalid (too long)")
-        }
-
-        let allowedCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_+"))
-        guard trimmed.rangeOfCharacter(from: allowedCharacters.inverted) == nil else {
-            return (false, "API token contains invalid characters")
-        }
-
-        return (true, nil)
-    }
-}
-
-// MARK: - Edit Account View
-
-struct EditAccountView: View {
-    let account: Account
-    let onSave: (Account, String?) -> Void
-    let onCancel: () -> Void
-
-    @State private var accountName: String = ""
-    @State private var apiToken: String = ""
-    @State private var showError: Bool = false
-    @State private var errorMessage: String = ""
-
-    var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Text("Edit Account")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                Spacer()
-            }
-            .padding()
-
-            Divider()
-
-            // Form
-            Form {
-                Section {
-                    TextField("Account Name", text: $accountName)
-                        .textFieldStyle(.roundedBorder)
-
-                    HStack {
-                        Text("Service Type:")
-                        Spacer()
-                        Text(account.serviceType.displayName)
-                            .foregroundColor(.secondary)
-                    }
-
-                    SecureField("New API Token (leave blank to keep current)", text: $apiToken)
-                        .textFieldStyle(.roundedBorder)
-
-                    Text("Leave the API token field empty to keep the existing token.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                } header: {
-                    Text("Account Details")
-                }
-            }
-            .formStyle(.grouped)
-            .padding()
-
-            if showError {
-                HStack {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.orange)
-                    Text(errorMessage)
-                        .font(.caption)
-                    Spacer()
-                }
-                .padding()
-                .background(Color.orange.opacity(0.1))
-            }
-
-            Divider()
-
-            // Footer buttons
-            HStack {
-                Button("Cancel", action: onCancel)
-                    .keyboardShortcut(.cancelAction)
-
-                Spacer()
-
-                Button("Save Changes") {
-                    saveChanges()
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(accountName.isEmpty)
-            }
-            .padding()
-        }
-        .frame(width: 500, height: 350)
-        .onAppear {
-            accountName = account.name
-        }
-    }
-
-    private func saveChanges() {
-        let trimmedName = accountName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedToken = apiToken.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard !trimmedName.isEmpty else {
-            showError = true
-            errorMessage = "Please enter an account name"
-            return
-        }
-
-        // Only validate token if one was provided
-        if !trimmedToken.isEmpty {
+        if serviceType.requiresAPIToken {
             let validation = validateAPIToken(trimmedToken)
             guard validation.isValid else {
                 showError = true
@@ -542,12 +551,13 @@ struct EditAccountView: View {
             }
         }
 
-        // Create updated account
-        var updatedAccount = account
-        updatedAccount.name = trimmedName
+        let account = Account(
+            name: trimmedName,
+            serviceType: serviceType,
+            isEnabled: true
+        )
 
-        // Pass nil for token if not changed, otherwise pass the new token
-        onSave(updatedAccount, trimmedToken.isEmpty ? nil : trimmedToken)
+        onSave(account, trimmedToken)
     }
 
     private func validateAPIToken(_ token: String) -> (isValid: Bool, message: String?) {
