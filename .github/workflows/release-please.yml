@@ -1,141 +1,60 @@
-name: Release on Merge to Main
+name: Release Please
 
 on:
   push:
     branches:
       - main
-    tags-ignore:
-      - "v*"
   workflow_dispatch:
     inputs:
-      version:
-        description: "Version to release (e.g., 1.2.3 or leave empty for auto-bump)"
-        required: false
+      tag_name:
+        description: "Release tag to build (e.g., v1.2.3) - skips release-please and runs build only"
+        required: true
         type: string
 
-# Important: These permissions ensure secrets are only accessible on main branch
 permissions:
-  id-token: write
   contents: write
+  pull-requests: write
+  id-token: write
   packages: write
 
 jobs:
-  release:
-    name: Create Release
-    runs-on: macos-latest
-    # Run on push to main (not PRs) or manual dispatch
-    # Skip if triggered by a version bump commit (created by cocogitto)
-    if: |
-      (github.event_name == 'workflow_dispatch') ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/main' && !startsWith(github.event.head_commit.message, 'chore(version):'))
-
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    outputs:
+      releases_created: ${{ steps.release.outputs.releases_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
-      # App token to run cocogitto
-      - uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf #v2.2.1
-        id: app-token
+      - uses: googleapis/release-please-action@v4
+        id: release
         with:
-          app-id: ${{ secrets.UO_RELEASE_APP_ID }}
-          private-key: ${{ secrets.UO_RELEASE_APP_PRIVATE_KEY }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  build:
+    name: Build and Publish Release
+    runs-on: macos-latest
+    needs: release-please
+    if: |
+      always() &&
+      (needs.release-please.outputs.releases_created == 'true' ||
+       github.event_name == 'workflow_dispatch')
+    steps:
       - name: Checkout code
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # Use a PAT or default token with write permissions
-          token: ${{ steps.app-token.outputs.token }}
+          ref: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
 
-      - name: Configure git for bot commits
+      - name: Set version
+        id: version
         run: |
-          git config user.name "GitHubActions"
-          git config user.email "github@unicornops.ie"
-
-      - name: Determine version strategy
-        id: version_strategy
-        run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "${{ inputs.version }}" ]; then
-            echo "strategy=manual" >> $GITHUB_OUTPUT
-            echo "Manual version specified: ${{ inputs.version }}"
-          else
-            echo "strategy=auto" >> $GITHUB_OUTPUT
-            echo "Auto-bump version from conventional commits"
-          fi
-
-      - name: Check for conventional commits
-        if: steps.version_strategy.outputs.strategy == 'auto'
-        uses: cocogitto/cocogitto-action@v4
-        with:
-          command: check
-          args: --from-latest-tag
-        continue-on-error: true
-
-      - name: Get next version
-        if: steps.version_strategy.outputs.strategy == 'auto'
-        id: next_version
-        run: |
-          NEXT_VERSION=$(cog bump --auto --dry-run 2>&1 || echo "none")
-          if [ "$NEXT_VERSION" == "none" ] || echo "$NEXT_VERSION" | grep -q "No conventional commits"; then
-            echo "No new version to bump - no conventional commits found"
-            echo "next_version=none" >> $GITHUB_OUTPUT
-            exit 1
-          fi
-          echo "next_version=$NEXT_VERSION" >> $GITHUB_OUTPUT
-          echo "Next version will be: $NEXT_VERSION"
-
-      - name: Cocogitto bump
-        if: steps.version_strategy.outputs.strategy == 'auto' && steps.next_version.outputs.next_version != 'none'
-        id: bump_auto
-        uses: cocogitto/cocogitto-action@9a9fe03b31c47444290c0d7f9b1ee1b44ee13f20 # v4.1.0
-        with:
-          command: bump
-          args: --auto
-          git-user: "GitHubActions"
-          git-user-email: "github@unicornops.ie"
-
-      - name: Create manual version tag
-        if: steps.version_strategy.outputs.strategy == 'manual'
-        id: bump_manual
-        run: |
-          VERSION="${{ inputs.version }}"
-          # Add 'v' prefix if not present
-          if [[ ! "$VERSION" =~ ^v ]]; then
-            VERSION="v${VERSION}"
-          fi
-
-          echo "Creating manual tag: $VERSION"
-          git tag -a "$VERSION" -m "chore(release): $VERSION"
+          TAG="${{ needs.release-please.outputs.tag_name || inputs.tag_name }}"
+          VERSION="${TAG#v}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Set bump output
-        id: bump
-        run: |
-          if [ "${{ steps.version_strategy.outputs.strategy }}" == "manual" ]; then
-            echo "version=${{ steps.bump_manual.outputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "version=${{ steps.bump_auto.outputs.version }}" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Push tags
-        run: |
-          git push --follow-tags
-
-      - name: Generate changelog for release
-        run: |
-          VERSION="${{ steps.bump.outputs.version }}"
-          if [ "${{ steps.version_strategy.outputs.strategy }}" == "manual" ]; then
-            # For manual releases, generate changelog from latest tag
-            echo "# Manual Release" > GITHUB_CHANGELOG.md
-            echo "" >> GITHUB_CHANGELOG.md
-            echo "This is a manually triggered release." >> GITHUB_CHANGELOG.md
-            echo "" >> GITHUB_CHANGELOG.md
-            echo "## Recent Changes" >> GITHUB_CHANGELOG.md
-            echo "" >> GITHUB_CHANGELOG.md
-            cog changelog --at "$VERSION" -t full_hash >> GITHUB_CHANGELOG.md 2>&1 || \
-            git log --pretty=format:"- %s (%h)" $(git describe --tags --abbrev=0 2>/dev/null || echo HEAD~10)..HEAD >> GITHUB_CHANGELOG.md
-          else
-            cog changelog \
-              --at "$VERSION" \
-              -t full_hash \
-              > GITHUB_CHANGELOG.md
-          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
 
       - name: Show build environment
         run: |
@@ -148,20 +67,10 @@ jobs:
           echo "macOS version:"
           sw_vers
 
-      - name: Set version for build
-        id: version
-        run: |
-          VERSION="${{ steps.bump.outputs.version }}"
-          # Remove 'v' prefix if present
-          VERSION="${VERSION#v}"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Building version: $VERSION"
-
       - name: Clean build directory
         run: rm -rf build/
 
       - name: Setup code signing
-        if: github.event_name != 'pull_request'
         env:
           CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -274,7 +183,6 @@ jobs:
           echo "✅ Code signing certificate installed"
 
       - name: Build and sign release
-        if: github.event_name != 'pull_request'
         run: |
           echo "Building with Developer ID Application certificate for team: $CERT_TEAM_ID"
 
@@ -417,6 +325,7 @@ jobs:
           echo "Build: $BUNDLE_BUILD"
 
       - name: Create DMG
+        id: create-dmg
         run: |
           APP_PATH="${{ steps.find-app.outputs.app_path }}"
           VERSION="${{ steps.version.outputs.version }}"
@@ -435,11 +344,10 @@ jobs:
             exit 1
           fi
 
-          # Save DMG name for later steps
           echo "dmg_name=$DMG_NAME" >> $GITHUB_OUTPUT
-        id: create-dmg
 
       - name: Create ZIP archive
+        id: create-zip
         run: |
           APP_PATH="${{ steps.find-app.outputs.app_path }}"
           VERSION="${{ steps.version.outputs.version }}"
@@ -458,7 +366,6 @@ jobs:
           fi
 
           echo "zip_name=$ZIP_NAME" >> $GITHUB_OUTPUT
-        id: create-zip
 
       - name: Calculate checksums
         run: |
@@ -485,31 +392,58 @@ jobs:
           done
           echo "Certificate cleanup complete"
 
-      - name: Create Release Notes
+      - name: Get release changelog
+        id: changelog
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          # Get the changelog body from the release created by release-please
+          CHANGELOG=$(gh release view "$TAG" --json body --jq '.body')
+          # Write to file to preserve formatting
+          echo "$CHANGELOG" > release-changelog.md
+          echo "Changelog retrieved for $TAG"
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          DMG_NAME="${{ steps.create-dmg.outputs.dmg_name }}"
+          ZIP_NAME="${{ steps.create-zip.outputs.zip_name }}"
+
+          gh release upload "$TAG" "$DMG_NAME" "$ZIP_NAME" checksums.txt --clobber
+
+      - name: Update release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
           VERSION="${{ steps.version.outputs.version }}"
           BUNDLE_VERSION="${{ steps.app-info.outputs.bundle_version }}"
           BUNDLE_BUILD="${{ steps.app-info.outputs.bundle_build }}"
+          DMG_NAME="${{ steps.create-dmg.outputs.dmg_name }}"
+          ZIP_NAME="${{ steps.create-zip.outputs.zip_name }}"
 
           cat > release-notes.md << EOF
           # OnCall Notify v${VERSION}
 
           ## 📋 Changelog
 
-          $(cat GITHUB_CHANGELOG.md)
+          $(cat release-changelog.md)
 
           ---
 
           ## 📦 Installation
 
           ### Option 1: DMG Installer (Recommended)
-          1. Download \`OnCallNotify-${VERSION}.dmg\`
+          1. Download \`${DMG_NAME}\`
           2. Open the DMG file
           3. Drag OnCall Notify to your Applications folder
           4. Launch from Applications
 
           ### Option 2: ZIP Archive
-          1. Download \`OnCallNotify-${VERSION}.zip\`
+          1. Download \`${ZIP_NAME}\`
           2. Extract the ZIP file
           3. Move OnCallNotify.app to your Applications folder
           4. Launch from Applications
@@ -547,29 +481,14 @@ jobs:
           For more details, see the [Quick Start Guide](https://github.com/${{ github.repository }}/blob/main/QUICKSTART.md).
           EOF
 
-          cat release-notes.md
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
-        with:
-          tag_name: ${{ steps.bump.outputs.version }}
-          body_path: release-notes.md
-          files: |
-            ${{ steps.create-dmg.outputs.dmg_name }}
-            ${{ steps.create-zip.outputs.zip_name }}
-            checksums.txt
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          gh release edit "$TAG" --notes-file release-notes.md
 
       - name: Release summary
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-
           echo "## Release Build Summary 🎉" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version**: ${{ steps.bump.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag**: ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Bundle Version**: ${{ steps.app-info.outputs.bundle_version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Bundle Build**: ${{ steps.app-info.outputs.bundle_build }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Xcode**: $(xcodebuild -version | head -n 1)" >> $GITHUB_STEP_SUMMARY
@@ -581,10 +500,9 @@ jobs:
           echo "- ✅ Notarized by Apple" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Ready for public distribution" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📦 Release Created" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Assets Uploaded" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- Tag: \`${{ steps.bump.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- DMG: \`${{ steps.create-dmg.outputs.dmg_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- ZIP: \`${{ steps.create-zip.outputs.zip_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🎉 **Release published**: https://github.com/${{ github.repository }}/releases/tag/${{ steps.bump.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "🎉 **Release**: https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
