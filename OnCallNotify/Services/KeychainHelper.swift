@@ -13,6 +13,8 @@ class KeychainHelper {
 
     private let service = "com.oncall.notify"
     private let accountsKey = "accounts-list" // Stores list of account IDs
+    private let defaultDemoSeedKey = "com.oncall.notify.has-seeded-default-demo-account"
+    private let defaultDemoAccountId = "app-store-demo"
     // Construct API token key pieces dynamically to avoid detect-secrets false positives.
     // We expose a prefix used for per-account keys (with trailing dash) and a
     // legacy key identifier (without trailing dash) for migration lookups.
@@ -32,9 +34,10 @@ class KeychainHelper {
         guard let data = getKeychainData(account: accountsKey),
               let accounts = try? JSONDecoder().decode([Account].self, from: data) else {
             // Try to migrate legacy single-account setup
-            return migrateLegacyAccount()
+            let migratedAccounts = migrateLegacyAccount()
+            return seedDefaultDemoAccountIfNeeded(existingAccounts: migratedAccounts)
         }
-        return accounts
+        return seedDefaultDemoAccountIfNeeded(existingAccounts: accounts)
     }
 
     /// Save accounts list
@@ -55,8 +58,10 @@ class KeychainHelper {
         }
 
         // Save API token for this account
-        guard saveAPIToken(apiToken, forAccountId: account.id) else {
-            return false
+        if account.requiresAPIToken {
+            guard saveAPIToken(apiToken, forAccountId: account.id) else {
+                return false
+            }
         }
 
         // Add account to list
@@ -79,12 +84,15 @@ class KeychainHelper {
     /// Delete an account
     func deleteAccount(accountId: String) -> Bool {
         var accounts = getAccounts()
+        let accountToDelete = accounts.first { $0.id == accountId }
 
         // Remove from list
         accounts.removeAll { $0.id == accountId }
 
         // Delete API token
-        _ = deleteAPIToken(forAccountId: accountId)
+        if let accountToDelete, accountToDelete.requiresAPIToken {
+            _ = deleteAPIToken(forAccountId: accountId)
+        }
 
         return saveAccounts(accounts)
     }
@@ -208,6 +216,31 @@ class KeychainHelper {
         _ = deleteAPIToken()
 
         return [defaultAccount]
+    }
+
+    private func seedDefaultDemoAccountIfNeeded(existingAccounts: [Account]) -> [Account] {
+        guard existingAccounts.isEmpty else {
+            return existingAccounts
+        }
+
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: defaultDemoSeedKey) else {
+            return existingAccounts
+        }
+
+        let demoAccount = Account(
+            id: defaultDemoAccountId,
+            name: "App Store Demo",
+            serviceType: .demo,
+            isEnabled: true
+        )
+
+        guard saveAccounts([demoAccount]) else {
+            return existingAccounts
+        }
+
+        defaults.set(true, forKey: defaultDemoSeedKey)
+        return [demoAccount]
     }
 
     // MARK: - Private Helpers

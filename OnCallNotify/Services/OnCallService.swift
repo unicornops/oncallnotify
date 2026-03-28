@@ -5,8 +5,76 @@
 //  Created by OnCall Notify
 //
 
+// swiftlint:disable file_length
 import Foundation
 import os.log
+
+protocol AccountServicing: AnyObject {
+    var account: Account { get }
+
+    func updateAccount(_ newAccount: Account)
+    func fetchData() async throws -> AccountAlertSummary
+    func acknowledgeIncident(incidentId: String) async throws
+    func performAcknowledgment(incidentId: String) async throws
+    func testConnection() async -> Bool
+}
+
+protocol ChangeTrackingAccountService: AnyObject {
+    var previousIncidentStatuses: [String: IncidentStatus] { get set }
+    var previousOnCallStatus: Bool { get set }
+    var isFirstFetch: Bool { get set }
+}
+
+extension ChangeTrackingAccountService {
+    func detectAndNotifyChanges(incidents: [Incident], isOnCall: Bool) {
+        let currentIncidentStatuses = Dictionary(uniqueKeysWithValues: incidents.map { ($0.id, $0.status) })
+        let currentIncidentIds = Set(currentIncidentStatuses.keys)
+        let previousIncidentIds = Set(previousIncidentStatuses.keys)
+
+        for incident in incidents {
+            if let previousStatus = previousIncidentStatuses[incident.id] {
+                if previousStatus != incident.status {
+                    if previousStatus == .triggered, incident.status == .acknowledged {
+                        NotificationService.shared.removeIncidentNotification(incidentId: incident.id)
+                        NotificationService.shared.sendIncidentAcknowledgedNotification(incident: incident)
+                    } else if incident.status == .resolved {
+                        NotificationService.shared.sendIncidentResolvedNotification(incident: incident)
+                        NotificationService.shared.removeIncidentNotification(incidentId: incident.id)
+                    }
+                }
+            } else {
+                if incident.status == .triggered {
+                    NotificationService.shared.sendIncidentNotification(incident: incident)
+                } else if incident.status == .acknowledged {
+                    NotificationService.shared.sendIncidentAcknowledgedNotification(incident: incident)
+                }
+            }
+        }
+
+        let resolvedIncidentIds = previousIncidentIds.subtracting(currentIncidentIds)
+        for incidentId in resolvedIncidentIds {
+            NotificationService.shared.removeIncidentNotification(incidentId: incidentId)
+        }
+
+        if isOnCall != previousOnCallStatus {
+            if isOnCall {
+                NotificationService.shared.sendOnCallStartNotification(nextShift: nil)
+            } else {
+                NotificationService.shared.sendOnCallEndNotification(nextShift: nil)
+            }
+        }
+    }
+
+    func updateChangeTracking(incidents: [Incident], isOnCall: Bool) {
+        if !isFirstFetch {
+            detectAndNotifyChanges(incidents: incidents, isOnCall: isOnCall)
+        }
+
+        previousIncidentStatuses = Dictionary(uniqueKeysWithValues: incidents.map { ($0.id, $0.status) })
+        previousOnCallStatus = isOnCall
+        isFirstFetch = false
+    }
+}
 
 @MainActor
 class OnCallService: ObservableObject {
@@ -16,10 +84,9 @@ class OnCallService: ObservableObject {
     @Published var isLoading = false
     @Published var lastError: Error?
 
-    private var accountServices: [String: AccountService] = [:] // accountId -> service
+    private var accountServices: [String: AccountServicing] = [:]
     private var updateTimer: Timer?
 
-    // Rate limiting and retry logic
     private var lastFetchTime: Date?
     private let minimumFetchInterval: TimeInterval = 5.0
 
@@ -36,37 +103,89 @@ class OnCallService: ObservableObject {
 
     func initializeAccountServices() {
         let accounts = KeychainHelper.shared.getAccounts()
+        let enabledAccounts = accounts.filter(\.isEnabled)
+        let enabledAccountIds = Set(enabledAccounts.map(\.id))
 
-        // Build set of enabled account IDs
-        let enabledAccountIds = Set(accounts.filter { $0.isEnabled }.map { $0.id })
-
-        // Remove services for accounts that no longer exist OR are disabled
         accountServices = accountServices.filter { enabledAccountIds.contains($0.key) }
 
-        // Create or update services for each enabled account
-        for account in accounts where account.isEnabled {
-            if accountServices[account.id] == nil {
-                accountServices[account.id] = AccountService(account: account)
-            } else {
-                accountServices[account.id]?.updateAccount(account)
+        for account in enabledAccounts {
+            if let existingService = accountServices[account.id] {
+                existingService.updateAccount(account)
+                continue
+            }
+
+            switch account.serviceType {
+            case .pagerDuty:
+                accountServices[account.id] = PagerDutyAccountService(account: account)
+            case .demo:
+                accountServices[account.id] = DemoAccountService(account: account)
             }
         }
     }
 
     func reloadAccounts() {
         initializeAccountServices()
-        refreshData()
+        refreshData(force: true)
+    }
+
+    func enabledAccounts() -> [Account] {
+        KeychainHelper.shared.getAccounts().filter(\.isEnabled)
+    }
+
+    func hasEnabledDemoAccount() -> Bool {
+        enabledAccounts().contains { $0.isDemoAccount }
+    }
+
+    func primaryDemoAccount() -> Account? {
+        enabledAccounts().first { $0.isDemoAccount }
+    }
+
+    func primaryLiveAccount() -> Account? {
+        enabledAccounts().first { !$0.isDemoAccount }
+    }
+
+    func demoConfiguration(for accountId: String) -> DemoConfiguration? {
+        guard let service = accountServices[accountId] as? DemoAccountService else {
+            return nil
+        }
+
+        return service.configuration()
+    }
+
+    func setDemoScenario(_ scenario: DemoScenario, for accountId: String) {
+        guard let service = accountServices[accountId] as? DemoAccountService else {
+            return
+        }
+
+        service.setScenario(scenario)
+        refreshData(force: true)
+    }
+
+    func advanceDemoScenario(for accountId: String) {
+        guard let service = accountServices[accountId] as? DemoAccountService else {
+            return
+        }
+
+        service.advanceScenario()
+        refreshData(force: true)
+    }
+
+    func resetDemoScenario(for accountId: String) {
+        guard let service = accountServices[accountId] as? DemoAccountService else {
+            return
+        }
+
+        service.resetScenario()
+        refreshData(force: true)
     }
 
     // MARK: - Auto Update
 
     func startAutoUpdate() {
-        // Update immediately
         Task {
             await fetchAllData()
         }
 
-        // Then update every 60 seconds
         updateTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task {
                 await self?.fetchAllData()
@@ -82,7 +201,6 @@ class OnCallService: ObservableObject {
     // MARK: - Main Fetch Method
 
     func fetchAllData() async {
-        // Check if we have any accounts
         guard !accountServices.isEmpty else {
             lastError = OnCallError.noAPIToken
             alertSummary = AlertSummary()
@@ -92,7 +210,6 @@ class OnCallService: ObservableObject {
         isLoading = true
         lastError = nil
 
-        // Fetch data from all account services
         await withTaskGroup(of: (String, AccountAlertSummary?, Error?).self) { group in
             for (accountId, service) in accountServices {
                 group.addTask {
@@ -110,9 +227,9 @@ class OnCallService: ObservableObject {
             var firstError: Error?
 
             for await (accountId, summary, error) in group {
-                if let summary = summary {
+                if let summary {
                     accountSummaries[accountId] = summary
-                } else if let error = error {
+                } else if let error {
                     hasError = true
                     if firstError == nil {
                         firstError = error
@@ -120,12 +237,10 @@ class OnCallService: ObservableObject {
                 }
             }
 
-            // Aggregate results
             aggregateResults(accountSummaries: accountSummaries)
 
-            // Set error if any account failed
-            if hasError, let error = firstError {
-                lastError = error
+            if hasError, let firstError {
+                lastError = firstError
             }
         }
 
@@ -136,8 +251,8 @@ class OnCallService: ObservableObject {
         var summary = AlertSummary()
         summary.accountSummaries = accountSummaries
 
-        // Aggregate totals across all accounts
         var allIncidents: [Incident] = []
+        var nextShiftCandidates: [Date] = []
 
         for (_, accountSummary) in accountSummaries {
             summary.totalAlerts += accountSummary.totalAlerts
@@ -145,9 +260,12 @@ class OnCallService: ObservableObject {
             summary.unacknowledgedCount += accountSummary.unacknowledgedCount
             summary.isOnCall = summary.isOnCall || accountSummary.isOnCall
             allIncidents.append(contentsOf: accountSummary.incidents)
+
+            if let nextShift = accountSummary.nextOnCallShift {
+                nextShiftCandidates.append(nextShift)
+            }
         }
 
-        // Sort incidents by creation time (most recent first)
         allIncidents.sort { incident1, incident2 in
             let formatter = ISO8601DateFormatter()
             guard let date1 = formatter.date(from: incident1.createdAt),
@@ -158,28 +276,23 @@ class OnCallService: ObservableObject {
         }
 
         summary.incidents = allIncidents
-
+        summary.nextOnCallShift = nextShiftCandidates.min()
         alertSummary = summary
     }
 
     // MARK: - API Methods
 
     func acknowledgeAllIncidents() async throws {
-        // Get all triggered incidents
         let triggeredIncidents = alertSummary.incidents.filter { $0.status == .triggered }
 
         guard !triggeredIncidents.isEmpty else {
             return
         }
 
-        // Acknowledge each incident without refreshing after each one
         var errors: [Error] = []
         for incident in triggeredIncidents {
-            guard let accountId = incident.accountId else {
-                continue
-            }
-
-            guard let service = accountServices[accountId] else {
+            guard let accountId = incident.accountId,
+                  let service = accountServices[accountId] else {
                 continue
             }
 
@@ -190,13 +303,11 @@ class OnCallService: ObservableObject {
             }
         }
 
-        // If any errors occurred, throw the first one
         if let firstError = errors.first {
             throw firstError
         }
 
-        // Refresh data once at the end to get latest from server
-        try? await Task.sleep(nanoseconds: 1_000_000_000) // Wait 1 second
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
         await fetchAllData()
     }
 
@@ -210,7 +321,6 @@ class OnCallService: ObservableObject {
 
         try await service.acknowledgeIncident(incidentId: incidentId)
 
-        // Refresh data after acknowledgment
         try? await Task.sleep(nanoseconds: 1_000_000_000)
         await fetchAllData()
     }
@@ -224,9 +334,9 @@ class OnCallService: ObservableObject {
 
     // MARK: - Public Helper Methods
 
-    func refreshData() {
-        // Prevent rapid refresh spam
-        if let lastFetch = lastFetchTime,
+    func refreshData(force: Bool = false) {
+        if !force,
+           let lastFetch = lastFetchTime,
            Date().timeIntervalSince(lastFetch) < minimumFetchInterval {
             Self.logger.debug("Refresh throttled - minimum interval not met")
             return
@@ -239,23 +349,19 @@ class OnCallService: ObservableObject {
         }
     }
 
-    // MARK: - Secure Logging
-
     private static let logger = Logger(subsystem: "com.oncall.notify", category: "api")
 }
 
-// MARK: - AccountService
+// MARK: - PagerDuty Account Service
 
-/// Service that manages API calls for a single account
-class AccountService {
-    private var account: Account
+class PagerDutyAccountService: AccountServicing, ChangeTrackingAccountService {
+    private(set) var account: Account
     private let baseURL = "https://api.pagerduty.com"
     private var currentUserId: String?
 
-    // Track previous state for change detection per account
-    private var previousIncidentStatuses: [String: IncidentStatus] = [:]
-    private var previousOnCallStatus: Bool = false
-    private var isFirstFetch: Bool = true
+    var previousIncidentStatuses: [String: IncidentStatus] = [:]
+    var previousOnCallStatus: Bool = false
+    var isFirstFetch: Bool = true
 
     private static let iso8601Formatter = ISO8601DateFormatter()
     private let futureScheduleLookupDays: Int = 30
@@ -276,32 +382,24 @@ class AccountService {
     }
 
     func updateAccount(_ newAccount: Account) {
-        self.account = newAccount
+        account = newAccount
     }
-
-    // MARK: - Main Fetch
 
     func fetchData() async throws -> AccountAlertSummary {
         guard let apiToken = KeychainHelper.shared.getAPIToken(forAccountId: account.id) else {
             throw OnCallError.noAPIToken
         }
 
-        // First, get current user ID if we don't have it
         if currentUserId == nil {
             try await fetchCurrentUser(apiToken: apiToken)
         }
 
-        // Fetch incidents and on-call status in parallel
         async let incidents = fetchIncidents(apiToken: apiToken)
         async let oncalls = fetchOncalls(apiToken: apiToken)
 
         let (fetchedIncidents, fetchedOncalls) = try await (incidents, oncalls)
-
-        // Process and return summary
         return processData(incidents: fetchedIncidents, oncalls: fetchedOncalls)
     }
-
-    // MARK: - API Methods
 
     func acknowledgeIncident(incidentId: String) async throws {
         try await performAcknowledgment(incidentId: incidentId)
@@ -358,8 +456,6 @@ class AccountService {
         }
     }
 
-    // MARK: - Private API Methods
-
     private func fetchCurrentUser(apiToken: String) async throws {
         let endpoint = "/users/me"
         let url = try buildURL(endpoint: endpoint)
@@ -381,7 +477,8 @@ class AccountService {
             } else {
                 throw OnCallError.apiError(
                     technicalMessage: "HTTP \(httpResponse.statusCode)",
-                    userMessage: "Unable to complete request")
+                    userMessage: "Unable to complete request"
+                )
             }
         }
 
@@ -428,14 +525,14 @@ class AccountService {
             } else {
                 throw OnCallError.apiError(
                     technicalMessage: "HTTP \(httpResponse.statusCode)",
-                    userMessage: "Unable to complete request")
+                    userMessage: "Unable to complete request"
+                )
             }
         }
 
         let decoder = JSONDecoder()
         let incidentsResponse = try decoder.decode(PagerDutyIncidentsResponse.self, from: data)
 
-        // Tag incidents with account ID
         return incidentsResponse.incidents.map { incident in
             var taggedIncident = incident
             taggedIncident.accountId = account.id
@@ -450,11 +547,11 @@ class AccountService {
         }
 
         let now = Date()
-        guard let futureDate = Calendar.current.date(
-                byAdding: .day, value: futureScheduleLookupDays, to: now) else {
+        guard let futureDate = Calendar.current.date(byAdding: .day, value: futureScheduleLookupDays, to: now) else {
             throw OnCallError.apiError(
                 technicalMessage: "Failed to calculate future date",
-                userMessage: "Unable to process schedule data")
+                userMessage: "Unable to process schedule data"
+            )
         }
 
         let sinceParam = Self.iso8601Formatter.string(from: now)
@@ -493,17 +590,15 @@ class AccountService {
             } else {
                 throw OnCallError.apiError(
                     technicalMessage: "HTTP \(httpResponse.statusCode)",
-                    userMessage: "Unable to complete request")
+                    userMessage: "Unable to complete request"
+                )
             }
         }
 
         let decoder = JSONDecoder()
         let oncallsResponse = try decoder.decode(PagerDutyOncallsResponse.self, from: data)
-
         return oncallsResponse.oncalls
     }
-
-    // MARK: - Helper Methods
 
     private func buildURL(endpoint: String) throws -> URL {
         guard let url = URL(string: baseURL + endpoint) else {
@@ -523,33 +618,35 @@ class AccountService {
     }
 
     private func processData(incidents: [Incident], oncalls: [Oncall]) -> AccountAlertSummary {
-        // Process on-call status
         let now = Date()
         var isCurrentlyOnCall = false
+        var nextOnCallShift: Date?
 
         for oncall in oncalls {
             if let startString = oncall.start,
+               let startDate = Self.iso8601Formatter.date(from: startString),
+               startDate > now {
+                if let currentNextShift = nextOnCallShift {
+                    if startDate < currentNextShift {
+                        nextOnCallShift = startDate
+                    }
+                } else {
+                    nextOnCallShift = startDate
+                }
+            }
+
+            if let startString = oncall.start,
                let endString = oncall.end,
                let startDate = Self.iso8601Formatter.date(from: startString),
-               let endDate = Self.iso8601Formatter.date(from: endString) {
-                if startDate <= now, endDate > now {
-                    isCurrentlyOnCall = true
-                    break
-                }
+               let endDate = Self.iso8601Formatter.date(from: endString),
+               startDate <= now,
+               endDate > now {
+                isCurrentlyOnCall = true
             }
         }
 
-        // Detect changes and send notifications (skip on first fetch)
-        if !isFirstFetch {
-            detectAndNotifyChanges(incidents: incidents, isOnCall: isCurrentlyOnCall)
-        }
+        updateChangeTracking(incidents: incidents, isOnCall: isCurrentlyOnCall)
 
-        // Update previous state
-        previousIncidentStatuses = Dictionary(uniqueKeysWithValues: incidents.map { ($0.id, $0.status) })
-        previousOnCallStatus = isCurrentlyOnCall
-        isFirstFetch = false
-
-        // Return summary
         return AccountAlertSummary(
             accountId: account.id,
             accountName: account.name,
@@ -557,50 +654,373 @@ class AccountService {
             acknowledgedCount: incidents.filter { $0.status == .acknowledged }.count,
             unacknowledgedCount: incidents.filter { $0.status == .triggered }.count,
             isOnCall: isCurrentlyOnCall,
+            nextOnCallShift: nextOnCallShift,
             incidents: incidents
         )
     }
+}
 
-    private func detectAndNotifyChanges(incidents: [Incident], isOnCall: Bool) {
-        let currentIncidentStatuses = Dictionary(uniqueKeysWithValues: incidents.map { ($0.id, $0.status) })
-        let currentIncidentIds = Set(currentIncidentStatuses.keys)
-        let previousIncidentIds = Set(previousIncidentStatuses.keys)
+// MARK: - Demo Account Service
 
-        // Detect new incidents and status transitions
-        for incident in incidents {
-            if let previousStatus = previousIncidentStatuses[incident.id] {
-                if previousStatus != incident.status {
-                    if previousStatus == .triggered, incident.status == .acknowledged {
-                        NotificationService.shared.removeIncidentNotification(incidentId: incident.id)
-                        NotificationService.shared.sendIncidentAcknowledgedNotification(incident: incident)
-                    } else if incident.status == .resolved {
-                        NotificationService.shared.sendIncidentResolvedNotification(incident: incident)
-                        NotificationService.shared.removeIncidentNotification(incidentId: incident.id)
-                    }
-                }
-            } else {
-                // New incident
-                if incident.status == .triggered {
-                    NotificationService.shared.sendIncidentNotification(incident: incident)
-                } else if incident.status == .acknowledged {
-                    NotificationService.shared.sendIncidentAcknowledgedNotification(incident: incident)
-                }
-            }
+class DemoAccountService: AccountServicing, ChangeTrackingAccountService {
+    private(set) var account: Account
+
+    var previousIncidentStatuses: [String: IncidentStatus] = [:]
+    var previousOnCallStatus: Bool = false
+    var isFirstFetch: Bool = true
+
+    private let stateStore = DemoStateStore.shared
+
+    init(account: Account) {
+        self.account = account
+    }
+
+    func updateAccount(_ newAccount: Account) {
+        account = newAccount
+    }
+
+    func fetchData() async throws -> AccountAlertSummary {
+        let state = stateStore.state(for: account)
+        updateChangeTracking(incidents: state.incidents, isOnCall: state.isOnCall)
+
+        return AccountAlertSummary(
+            accountId: account.id,
+            accountName: account.name,
+            totalAlerts: state.incidents.count,
+            acknowledgedCount: state.incidents.filter { $0.status == .acknowledged }.count,
+            unacknowledgedCount: state.incidents.filter { $0.status == .triggered }.count,
+            isOnCall: state.isOnCall,
+            nextOnCallShift: state.nextOnCallShift,
+            incidents: state.incidents
+        )
+    }
+
+    func acknowledgeIncident(incidentId: String) async throws {
+        try await performAcknowledgment(incidentId: incidentId)
+    }
+
+    func performAcknowledgment(incidentId: String) async throws {
+        guard stateStore.acknowledgeIncident(withId: incidentId, for: account) else {
+            throw OnCallError.acknowledgmentFailed(message: "Unable to acknowledge the demo incident")
+        }
+    }
+
+    func testConnection() async -> Bool {
+        true
+    }
+
+    func configuration() -> DemoConfiguration {
+        stateStore.configuration(for: account.id)
+    }
+
+    func setScenario(_ scenario: DemoScenario) {
+        stateStore.setScenario(scenario, for: account)
+    }
+
+    func advanceScenario() {
+        stateStore.advanceScenario(for: account)
+    }
+
+    func resetScenario() {
+        stateStore.resetScenario(for: account)
+    }
+}
+
+private struct DemoState: Codable {
+    var scenario: DemoScenario
+    var isOnCall: Bool
+    var nextOnCallShift: Date?
+    var incidents: [Incident]
+}
+
+private class DemoStateStore {
+    static let shared = DemoStateStore()
+
+    private let defaults = UserDefaults.standard
+    private let encoder = JSONEncoder()
+    private let decoder = JSONDecoder()
+    private let stateKeyPrefix = "com.oncall.notify.demo.state."
+    private let configurationKeyPrefix = "com.oncall.notify.demo.configuration."
+    private let iso8601Formatter = ISO8601DateFormatter()
+
+    private init() {}
+
+    func configuration(for accountId: String) -> DemoConfiguration {
+        guard let data = defaults.data(forKey: configurationKeyPrefix + accountId),
+              let configuration = try? decoder.decode(DemoConfiguration.self, from: data) else {
+            return DemoConfiguration()
         }
 
-        // Detect resolved incidents
-        let resolvedIncidentIds = previousIncidentIds.subtracting(currentIncidentIds)
-        for incidentId in resolvedIncidentIds {
-            NotificationService.shared.removeIncidentNotification(incidentId: incidentId)
+        return configuration
+    }
+
+    func state(for account: Account) -> DemoState {
+        if let data = defaults.data(forKey: stateKeyPrefix + account.id),
+           let state = try? decoder.decode(DemoState.self, from: data) {
+            return normalizeState(state, accountId: account.id)
         }
 
-        // Detect on-call status changes
-        if isOnCall != previousOnCallStatus {
-            if isOnCall {
-                NotificationService.shared.sendOnCallStartNotification(nextShift: nil)
-            } else {
-                NotificationService.shared.sendOnCallEndNotification(nextShift: nil)
-            }
+        let configuration = configuration(for: account.id)
+        let state = makeState(for: configuration.selectedScenario, accountId: account.id)
+        save(state: state, for: account.id)
+        return state
+    }
+
+    func setScenario(_ scenario: DemoScenario, for account: Account) {
+        save(configuration: DemoConfiguration(selectedScenario: scenario), for: account.id)
+        save(state: makeState(for: scenario, accountId: account.id), for: account.id)
+    }
+
+    func advanceScenario(for account: Account) {
+        let currentConfiguration = configuration(for: account.id)
+        let scenarios = DemoScenario.allCases
+        guard let currentIndex = scenarios.firstIndex(of: currentConfiguration.selectedScenario) else {
+            setScenario(.reviewOverview, for: account)
+            return
         }
+
+        let nextIndex = scenarios.index(after: currentIndex)
+        let nextScenario = nextIndex < scenarios.endIndex ? scenarios[nextIndex] : scenarios[scenarios.startIndex]
+        setScenario(nextScenario, for: account)
+    }
+
+    func resetScenario(for account: Account) {
+        let currentConfiguration = configuration(for: account.id)
+        save(state: makeState(for: currentConfiguration.selectedScenario, accountId: account.id), for: account.id)
+    }
+
+    func acknowledgeIncident(withId incidentId: String, for account: Account) -> Bool {
+        var state = state(for: account)
+        guard let index = state.incidents.firstIndex(where: { $0.id == incidentId }) else {
+            return false
+        }
+
+        let incident = state.incidents[index]
+        guard incident.status == .triggered else {
+            return true
+        }
+
+        let updatedDate = iso8601Formatter.string(from: Date())
+        state.incidents[index] = incident.updating(
+            status: .acknowledged,
+            updatedAt: updatedDate,
+            lastStatusChangeAt: updatedDate
+        )
+        save(state: state, for: account.id)
+        return true
+    }
+
+    private func save(configuration: DemoConfiguration, for accountId: String) {
+        guard let data = try? encoder.encode(configuration) else {
+            return
+        }
+
+        defaults.set(data, forKey: configurationKeyPrefix + accountId)
+    }
+
+    private func save(state: DemoState, for accountId: String) {
+        guard let data = try? encoder.encode(state) else {
+            return
+        }
+
+        defaults.set(data, forKey: stateKeyPrefix + accountId)
+    }
+
+    private func normalizeState(_ state: DemoState, accountId: String) -> DemoState {
+        var normalizedState = state
+        normalizedState.incidents = normalizedState.incidents.map { incident in
+            var taggedIncident = incident
+            taggedIncident.accountId = accountId
+            return taggedIncident
+        }
+        return normalizedState
+    }
+
+    private func makeState(for scenario: DemoScenario, accountId: String) -> DemoState {
+        let now = Date()
+        switch scenario {
+        case .reviewOverview:
+            return makeReviewOverviewState(now: now, accountId: accountId)
+        case .activeIncident:
+            return makeActiveIncidentState(now: now, accountId: accountId)
+        case .shiftHandoff:
+            return makeShiftHandoffState(now: now, accountId: accountId)
+        case .quietShift:
+            return makeQuietShiftState(now: now, accountId: accountId)
+        }
+    }
+
+    private func makeReviewOverviewState(now: Date, accountId: String) -> DemoState {
+        DemoState(
+            scenario: .reviewOverview,
+            isOnCall: true,
+            nextOnCallShift: Calendar.current.date(byAdding: .day, value: 5, to: now),
+            incidents: [
+                makeIncident(
+                    id: "demo-review-triggered",
+                    title: "Payments API latency crossing SLO",
+                    summary: "Latency to the payments API is above the paging threshold.",
+                    status: .triggered,
+                    urgency: "high",
+                    createdAt: now.addingTimeInterval(-12 * 60),
+                    updatedAt: now.addingTimeInterval(-12 * 60),
+                    serviceName: "Payments API",
+                    incidentNumber: 4201,
+                    accountId: accountId
+                ),
+                makeIncident(
+                    id: "demo-review-acknowledged",
+                    title: "Background jobs retry queue growing",
+                    summary: "Retry backlog is elevated but being actively worked.",
+                    status: .acknowledged,
+                    urgency: "high",
+                    createdAt: now.addingTimeInterval(-52 * 60),
+                    updatedAt: now.addingTimeInterval(-18 * 60),
+                    serviceName: "Worker Fleet",
+                    incidentNumber: 4200,
+                    accountId: accountId
+                )
+            ]
+        )
+    }
+
+    private func makeActiveIncidentState(now: Date, accountId: String) -> DemoState {
+        DemoState(
+            scenario: .activeIncident,
+            isOnCall: true,
+            nextOnCallShift: Calendar.current.date(byAdding: .day, value: 3, to: now),
+            incidents: [
+                makeIncident(
+                    id: "demo-active-1",
+                    title: "Login service elevated 5xx rate",
+                    summary: "Customer sign-ins are failing for multiple regions.",
+                    status: .triggered,
+                    urgency: "high",
+                    createdAt: now.addingTimeInterval(-6 * 60),
+                    updatedAt: now.addingTimeInterval(-6 * 60),
+                    serviceName: "Identity Platform",
+                    incidentNumber: 4301,
+                    accountId: accountId
+                ),
+                makeIncident(
+                    id: "demo-active-2",
+                    title: "Search index replication lag",
+                    summary: "Search results are stale while replicas catch up.",
+                    status: .triggered,
+                    urgency: "high",
+                    createdAt: now.addingTimeInterval(-24 * 60),
+                    updatedAt: now.addingTimeInterval(-24 * 60),
+                    serviceName: "Search Cluster",
+                    incidentNumber: 4300,
+                    accountId: accountId
+                ),
+                makeIncident(
+                    id: "demo-active-3",
+                    title: "Billing exports delayed",
+                    summary: "Scheduled exports are delayed but customer traffic is unaffected.",
+                    status: .acknowledged,
+                    urgency: "low",
+                    createdAt: now.addingTimeInterval(-90 * 60),
+                    updatedAt: now.addingTimeInterval(-40 * 60),
+                    serviceName: "Billing Pipeline",
+                    incidentNumber: 4298,
+                    accountId: accountId
+                )
+            ]
+        )
+    }
+
+    private func makeShiftHandoffState(now: Date, accountId: String) -> DemoState {
+        DemoState(
+            scenario: .shiftHandoff,
+            isOnCall: false,
+            nextOnCallShift: Calendar.current.date(byAdding: .hour, value: 6, to: now),
+            incidents: [
+                makeIncident(
+                    id: "demo-handoff-1",
+                    title: "Synthetic checkout monitor flapping",
+                    summary: "Intermittent monitor failures were acknowledged during handoff.",
+                    status: .acknowledged,
+                    urgency: "low",
+                    createdAt: now.addingTimeInterval(-3 * 3600),
+                    updatedAt: now.addingTimeInterval(-45 * 60),
+                    serviceName: "Checkout Experience",
+                    incidentNumber: 4288,
+                    accountId: accountId
+                )
+            ]
+        )
+    }
+
+    private func makeQuietShiftState(now: Date, accountId: String) -> DemoState {
+        DemoState(
+            scenario: .quietShift,
+            isOnCall: false,
+            nextOnCallShift: Calendar.current.date(byAdding: .hour, value: 2, to: now),
+            incidents: []
+        )
+    }
+
+    // swiftlint:disable:next function_parameter_count
+    private func makeIncident(
+        id: String,
+        title: String,
+        summary: String,
+        status: IncidentStatus,
+        urgency: String,
+        createdAt: Date,
+        updatedAt: Date,
+        serviceName: String,
+        incidentNumber: Int,
+        accountId: String
+    ) -> Incident {
+        Incident(
+            id: id,
+            type: "incident",
+            summary: summary,
+            status: status,
+            urgency: urgency,
+            title: title,
+            createdAt: iso8601Formatter.string(from: createdAt),
+            updatedAt: iso8601Formatter.string(from: updatedAt),
+            htmlUrl: nil,
+            incidentNumber: incidentNumber,
+            service: Service(
+                id: "service-\(id)",
+                type: "service_reference",
+                summary: serviceName,
+                htmlUrl: nil
+            ),
+            assignments: nil,
+            acknowledgements: nil,
+            lastStatusChangeAt: iso8601Formatter.string(from: updatedAt),
+            accountId: accountId
+        )
+    }
+}
+
+private extension Incident {
+    func updating(
+        status: IncidentStatus,
+        updatedAt: String?,
+        lastStatusChangeAt: String?
+    ) -> Incident {
+        Incident(
+            id: id,
+            type: type,
+            summary: summary,
+            status: status,
+            urgency: urgency,
+            title: title,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            htmlUrl: htmlUrl,
+            incidentNumber: incidentNumber,
+            service: service,
+            assignments: assignments,
+            acknowledgements: acknowledgements,
+            lastStatusChangeAt: lastStatusChangeAt,
+            accountId: accountId
+        )
     }
 }

@@ -2,6 +2,11 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## Unreleased
+#### Features
+- add full demo mode with seeded App Store review account, local scenarios, and credential-free walkthrough
+
+- - -
 ## v0.23.3 - 2026-01-30
 #### Bug Fixes
 - use sheet(item:) for edit account to pass account data correctly - (6d8bba5) - Rob Lazzurs
