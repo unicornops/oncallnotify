@@ -7,6 +7,13 @@ All notable changes to this project will be documented in this file. See [conven
 - add full demo mode with seeded App Store review account, local scenarios, and credential-free walkthrough
 
 - - -
+## [0.24.0](https://github.com/unicornops/oncallnotify/compare/v0.23.3...v0.24.0) (2026-03-28)
+
+
+### Features
+
+* Add full demo mode with seeded App Store review account ([#56](https://github.com/unicornops/oncallnotify/issues/56)) ([2a98a5a](https://github.com/unicornops/oncallnotify/commit/2a98a5acbe9182ab933cc67cf82361c2900f21a2))
+
 ## v0.23.3 - 2026-01-30
 #### Bug Fixes
 - use sheet(item:) for edit account to pass account data correctly - (6d8bba5) - Rob Lazzurs
